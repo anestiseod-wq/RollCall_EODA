@@ -8,7 +8,40 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script></head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style id="compact-home-2026">
+/* Compact home screen. Original logo images remain embedded and untouched. */
+@media (min-width: 768px) {
+  header { padding: 9px 16px !important; gap: 10px !important; }
+  header > div:first-child { gap: 10px !important; }
+  header #logo-eoda, header #logo-tele { width: 54px !important; height: 54px !important; object-fit: contain !important; }
+  header h1 { font-size: 16px !important; line-height: 1.2 !important; }
+  header p { font-size: 11px !important; line-height: 1.35 !important; margin-top: 1px !important; }
+  #sectionHome { padding-top: 10px !important; padding-bottom: 12px !important; }
+  #sectionHome > div:first-child { margin-bottom: 0 !important; }
+  #sectionHome h2 { font-size: 22px !important; line-height: 1.15 !important; }
+  #sectionHome > div:first-child p { font-size: 12px !important; }
+  #sectionHome { row-gap: 10px !important; }
+  #sectionHome > .grid { gap: 10px !important; }
+  #sectionHome > .grid > div { padding: 12px !important; row-gap: 8px !important; }
+  #sectionHome > .grid > button { padding: 12px !important; gap: 5px !important; }
+  #sectionHome > .grid > button i { font-size: 22px !important; }
+  #sectionHome > .grid > button .text-lg { font-size: 15px !important; }
+  #sectionHome > .mt-6 { margin-top: 0 !important; padding: 8px !important; gap: 3px !important; }
+  #sectionHome #qrcode { padding: 2px !important; }
+  #sectionHome #qrcode canvas, #sectionHome #qrcode img { width: 86px !important; height: 86px !important; }
+}
+@media (max-width: 767px) {
+  header { padding: 10px !important; gap: 7px !important; }
+  header #logo-eoda, header #logo-tele { width: 48px !important; height: 48px !important; object-fit: contain !important; }
+  header h1 { font-size: 16px !important; }
+  #sectionHome { padding-top: 12px !important; padding-bottom: 12px !important; row-gap: 10px !important; }
+  #sectionHome > .grid > div, #sectionHome > .grid > button { padding: 12px !important; }
+  #sectionHome > .mt-6 { margin-top: 0 !important; padding: 10px !important; }
+  #sectionHome #qrcode canvas, #sectionHome #qrcode img { width: 100px !important; height: 100px !important; }
+}
+</style>
+</head>
 <body class="bg-slate-100 text-slate-800 min-h-screen p-2 md:p-6 font-sans">
 <div class="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
 <!-- Κεφαλίδα με Αυθεντικά Ενσωματωμένα Λογότυπα (1ο: ΕΟΔ Αττικής, 2ο: Τμήμα Τηλεπικοινωνιών) -->
@@ -54,7 +87,7 @@
 <section class="max-w-4xl mx-auto py-6 sm:py-12 space-y-5" id="sectionHome">
 <div class="text-center space-y-2">
 <h2 class="text-2xl sm:text-3xl font-black text-slate-800">ROLL CALL EODA</h2>
-<p class="text-sm text-slate-500">Παρουσιολόγιο &amp; Εικόνα Τμήματος Τηλεπικοινωνιών</p>
+<p class="text-sm text-slate-500">Παρουσιολόγιο &amp; Εικόνα Δράσης</p>
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div class="bg-sky-50/60 border border-sky-200 rounded-2xl shadow-sm p-5 space-y-3"><h3 class="font-black text-slate-800 flex items-center gap-2"><i class="fa-solid fa-tower-broadcast text-sky-600"></i> Επιχείρηση</h3><div class="flex items-center gap-3 flex-wrap" aria-label="Ενδείξεις επιχείρησης για μελλοντική χρήση"><span class="inline-flex items-center gap-2 rounded-lg bg-red-50/70 border border-red-100 px-3 py-2 text-sm font-bold text-red-700"><span class="h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true"></span>ΝΑΙ</span><span class="inline-flex items-center gap-2 rounded-lg bg-emerald-50/70 border border-emerald-100 px-3 py-2 text-sm font-bold text-emerald-700"><span class="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true"></span>ΟΧΙ</span></div></div>
@@ -265,6 +298,13 @@
         document.getElementById("entryDate").value = todayStr;
 
         let selectedDate = todayStr;
+        // Εφάπαξ καθαρισμός παλιών δοκιμαστικών καταχωρίσεων ανά browser.
+        // Η σήμανση αποτρέπει διαγραφή νέων καταχωρίσεων σε επόμενες επισκέψεις.
+        const resetMarker = 'eoda_history_clean_start_20261025_v1';
+        if (localStorage.getItem(resetMarker) !== 'done') {
+            localStorage.removeItem('eoda_records_db');
+            localStorage.setItem(resetMarker, 'done');
+        }
         let db = JSON.parse(localStorage.getItem("eoda_records_db") || "{}");
         let myChart = null;
 
