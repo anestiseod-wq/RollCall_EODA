@@ -1,8 +1,8 @@
-import os, sqlite3, secrets, hashlib, hmac, html, json
+import os, sqlite3, secrets, hashlib, hmac, html, json, re, base64, urllib.request, functools
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
 app=FastAPI(title="TET RollCall")
@@ -37,6 +37,23 @@ def auth(req):return req.session.get("role")
 def csrf(req):return req.session.setdefault("csrf",secrets.token_urlsafe(24))
 def valid_csrf(req,token):
  return bool(req.session.get("csrf")) and hmac.compare_digest(str(token),req.session["csrf"])
+@functools.lru_cache(maxsize=1)
+def old_logos():
+ with urllib.request.urlopen("https://anestiseod-wq.github.io/RollCall_EODA/",timeout=7) as response:
+  source=response.read(2000000).decode("utf-8")
+ result={}
+ for key in ("eoda","tele"):
+  match=re.search('id="logo-'+key+'"[^>]*src="data:image/png;base64,([^"]+)"',source)
+  if match:result[key]=base64.b64decode(match.group(1),validate=True)
+ return result
+@app.get("/branding/{logo}")
+def branding(logo:str):
+ if logo not in ("eoda","tele"):return Response(status_code=404)
+ try:
+  data=old_logos().get(logo)
+  if data:return Response(content=data,media_type="image/png",headers={"Cache-Control":"public, max-age=86400"})
+ except Exception:pass
+ return Response(status_code=404)
 def page(req,title,body):
  role=auth(req)
  theme=req.cookies.get("theme","dark")
@@ -65,7 +82,7 @@ button:hover{filter:brightness(1.12)}button:focus-visible,a:focus-visible,input:
 .hero{border:1px solid var(--line);border-radius:22px;padding:23px;background:linear-gradient(105deg,#164b55,#1c344d 65%,#233e56);margin-bottom:18px;display:flex;justify-content:space-between;gap:16px;align-items:center}
 .hero strong{font-size:23px;color:#fff}.hero p{color:#d1e9e7;margin:8px 0 0}.hero .emblem{font-size:44px;opacity:.9}
 @media(max-width:640px){header{padding:13px 16px;align-items:flex-start;flex-direction:column}nav{gap:7px}nav a{padding:6px 9px;font-size:13px}main{margin:10px auto}.hero{padding:17px}.hero strong{font-size:19px}.hero .emblem{font-size:30px}table{font-size:13px}}
-</style><body class='"""+("light" if theme=="light" else "")+"""'><header><strong>🟢 TET | Παρουσιολόγιο</strong><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
+.brand{display:flex;align-items:center;gap:11px}.brand img{width:49px;height:49px;object-fit:contain;filter:drop-shadow(0 2px 5px #0003)}@media(max-width:640px){.brand img{width:42px;height:42px}}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
