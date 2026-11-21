@@ -35,15 +35,8 @@ def now():return datetime.now().strftime("%Y-%m-%d %H:%M")
 def esc(x):return html.escape(str(x),quote=True)
 def auth(req):return req.session.get("role")
 def csrf(req):return req.session.setdefault("csrf",secrets.token_urlsafe(24))
-@app.middleware("http")
-async def protect_posts(req,call_next):
- if req.method=="POST" and req.url.path!="/login":
-  from fastapi.responses import PlainTextResponse
-  token=(await req.form()).get("csrf","")
-  if not req.session.get("csrf") or not hmac.compare_digest(str(token),req.session["csrf"]):
-   return PlainTextResponse("Invalid request token",status_code=403)
- return await call_next(req)
-def log(c,actor,action,detail):c.execute("INSERT INTO audit(actor,action,detail,at) VALUES(?,?,?,?)",(actor,action,detail,now()))
+def valid_csrf(req,token):
+ return bool(req.session.get("csrf")) and hmac.compare_digest(str(token),req.session["csrf"])
 def page(req,title,body):
  role=auth(req)
  theme=req.cookies.get("theme","dark")
@@ -100,7 +93,8 @@ def people(req:Request):
  with connect() as c:rows=c.execute("SELECT * FROM people ORDER BY name").fetchall()
  return page(req,"Μέλη ΤΕΤ",'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td></tr>' for p in rows)+'</table></div></div>')
 @app.post("/people")
-def addperson(req:Request,name:str=Form(...),pin:str=Form(...)):
+def addperson(req:Request,name:str=Form(...),pin:str=Form(...),csrf:str=Form(...)):
+ if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if len(pin)<6 or not pin.isdigit():return HTMLResponse("PIN: τουλάχιστον 6 ψηφία",400)
  with connect() as c:
@@ -108,7 +102,8 @@ def addperson(req:Request,name:str=Form(...),pin:str=Form(...)):
   except sqlite3.IntegrityError:pass
  return go("/people")
 @app.post("/presence")
-def presence(req:Request,person_id:int=Form(...),status:str=Form(...)):
+def presence(req:Request,person_id:int=Form(...),status:str=Form(...),csrf:str=Form(...)):
+ if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if status not in ("Παρών","Απών"):return HTMLResponse("Invalid",400)
  with connect() as c:
@@ -116,7 +111,8 @@ def presence(req:Request,person_id:int=Form(...),status:str=Form(...)):
   log(c,"Υπεύθυνος","Παρουσία",f"{person_id}: {status}")
  return go()
 @app.post("/activity")
-def activity(req:Request,title:str=Form(...),day:str=Form(...)):
+def activity(req:Request,title:str=Form(...),day:str=Form(...),csrf:str=Form(...)):
+ if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if title not in ("Πιθανή κινητοποίηση","Άσκηση","Άλλη δραστηριότητα"):return HTMLResponse("Invalid",400)
  try:datetime.strptime(day,"%Y-%m-%d")
@@ -125,7 +121,8 @@ def activity(req:Request,title:str=Form(...),day:str=Form(...)):
   c.execute("INSERT INTO activities(title,day,created_at) VALUES(?,?,?)",(title,day,now()));log(c,"Υπεύθυνος","Άνοιγμα διαθεσιμότητας",title+" "+day)
  return go()
 @app.post("/availability")
-def availability(req:Request,activity_id:int=Form(...),status:str=Form(...)):
+def availability(req:Request,activity_id:int=Form(...),status:str=Form(...),csrf:str=Form(...)):
+ if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="member" or not req.session.get("person_id"):return HTMLResponse("Forbidden",403)
  person_id=req.session["person_id"]
  if status not in ("Διαθέσιμος","Ίσως διαθέσιμος","Μη διαθέσιμος"):return HTMLResponse("Invalid",400)
@@ -136,7 +133,8 @@ def availability(req:Request,activity_id:int=Form(...),status:str=Form(...)):
   log(c,"Μέλος","Διαθεσιμότητα",f"{activity_id}/{person_id}: {status}")
  return go()
 @app.post("/close")
-def close(req:Request,activity_id:int=Form(...)):
+def close(req:Request,activity_id:int=Form(...),csrf:str=Form(...)):
+ if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  with connect() as c:c.execute("UPDATE activities SET active=0 WHERE id=?",(activity_id,));log(c,"Υπεύθυνος","Κλείσιμο διαθεσιμότητας",str(activity_id))
  return go()
