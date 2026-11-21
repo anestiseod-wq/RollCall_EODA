@@ -55,7 +55,7 @@ def login_page(req:Request):
  with connect() as c:
   people=c.execute("SELECT id,name FROM people ORDER BY name").fetchall()
  opts=''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)
- return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Μέλος (για είσοδο μέλους) <select name="person_id"><option value="0">—</option>__PEOPLE_OPTIONS__</select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
+ return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Μέλος (για είσοδο μέλους) <select name="person_id"><option value="0">—</option>'+opts+'</select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
 @app.post("/login")
 def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)):
  if role=="admin":
@@ -89,7 +89,7 @@ def home(req:Request):
   body+='<div class="panel"><strong>'+esc(a["title"])+' • '+esc(a["day"])+'</strong> <span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span><p>Διαθέσιμοι: '+str(summary.get((a["id"],"Διαθέσιμος"),0))+' · Ίσως: '+str(summary.get((a["id"],"Ίσως διαθέσιμος"),0))+' · Μη διαθέσιμοι: '+str(summary.get((a["id"],"Μη διαθέσιμος"),0))+'</p>'
   if a["active"]:
    if role=="member":
-    body+='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><select name="person_id">'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Διαθέσιμος</option><option>Ίσως διαθέσιμος</option><option>Μη διαθέσιμος</option></select><button>Δήλωση</button></form>'
+    body+='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><select name="status"><option>Διαθέσιμος</option><option>Ίσως διαθέσιμος</option><option>Μη διαθέσιμος</option></select><button>Δήλωση</button></form>'
    else:body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
   body+='</div>'
  body+='</div>'
