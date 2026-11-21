@@ -19,7 +19,7 @@ def test_admin_member_attendance_availability(tmp_path):
     tet.DB=str(tmp_path/"test.sqlite")
     tet.init()
     with TestClient(tet.app) as admin:
-        assert admin.get("/health").json()=={"ok":True}
+        assert admin.get("/health").json()=={"ok":True,"database":"sqlite","persistent_database":False}
         assert admin.post("/login",data={"role":"admin","pin":"wrong"}).status_code==403
         assert admin.post("/login",data={"role":"admin","pin":"test-admin-only"}).status_code==200
         p=admin.get("/people")
