@@ -1,4 +1,4 @@
-import os, sqlite3, secrets, hashlib, hmac, html, json, re, base64, urllib.request, functools
+import os, sqlite3, secrets, hashlib, hmac, html, json, base64, functools
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from fastapi import FastAPI, Request, Form
@@ -37,20 +37,16 @@ def auth(req):return req.session.get("role")
 def csrf(req):return req.session.setdefault("csrf",secrets.token_urlsafe(24))
 def valid_csrf(req,token):
  return bool(req.session.get("csrf")) and hmac.compare_digest(str(token),req.session["csrf"])
-@functools.lru_cache(maxsize=1)
-def old_logos():
- with urllib.request.urlopen("https://anestiseod-wq.github.io/RollCall_EODA/",timeout=7) as response:
-  source=response.read(2000000).decode("utf-8")
- result={}
- for key in ("eoda","tele"):
-  match=re.search('id="logo-'+key+'"[^>]*src="data:image/png;base64,([^"]+)"',source)
-  if match:result[key]=base64.b64decode(match.group(1),validate=True)
- return result
+@functools.lru_cache(maxsize=2)
+def stored_logo(logo):
+ from pathlib import Path
+ asset=Path(__file__).resolve().parent/"assets"/("logo-"+logo+".b64")
+ return base64.b64decode(asset.read_text(encoding="ascii"),validate=True)
 @app.get("/branding/{logo}")
 def branding(logo:str):
  if logo not in ("eoda","tele"):return Response(status_code=404)
  try:
-  data=old_logos().get(logo)
+  data=stored_logo(logo)
   if data:return Response(content=data,media_type="image/png",headers={"Cache-Control":"public, max-age=86400"})
  except Exception:pass
  return Response(status_code=404)
