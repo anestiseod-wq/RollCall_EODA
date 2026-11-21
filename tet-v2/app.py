@@ -208,4 +208,10 @@ def history(req:Request):
  with connect() as c:rows=execute(c,"SELECT * FROM audit ORDER BY id DESC LIMIT 250").fetchall()
  return page(req,"Ιστορικό αλλαγών",'<div class="panel wrap"><table><tr><th>Ημερομηνία</th><th>Ενέργεια</th><th>Λεπτομέρειες</th></tr>'+''.join('<tr><td>'+esc(r["at"])+'</td><td>'+esc(r["action"])+'</td><td>'+esc(r["detail"])+'</td></tr>' for r in rows)+'</table></div>')
 @app.get("/health")
-def health():return {"ok":True}
+def health():
+ try:
+  with connect() as c:
+   execute(c,"SELECT 1").fetchone()
+  return {"ok":True,"database":"postgresql" if DATABASE_URL else "sqlite","persistent_database":bool(DATABASE_URL)}
+ except Exception:
+  return Response(content=json.dumps({"ok":False,"database":"unavailable"}),media_type="application/json",status_code=503)
