@@ -109,6 +109,7 @@ def home(req:Request):
   pres=c.execute("SELECT p.*,people.name FROM presence p JOIN people ON people.id=p.person_id WHERE day=? ORDER BY people.name",(datetime.now().strftime("%Y-%m-%d"),)).fetchall()
   acts=c.execute("SELECT * FROM activities ORDER BY id DESC").fetchall()
   counts=c.execute("SELECT activity_id,status,COUNT(*) n FROM availability GROUP BY activity_id,status").fetchall()
+  available_rows=c.execute("SELECT a.activity_id,a.status,p.name FROM availability a JOIN people p ON p.id=a.person_id ORDER BY p.name").fetchall() if role=="admin" else []
   summary={(r["activity_id"],r["status"]):r["n"] for r in counts}
  body='<div class="hero"><div><strong>Κέντρο επιχειρησιακής εικόνας ΤΕΤ</strong><p>Παρουσίες, ετοιμότητα και προγραμματισμένες δραστηριότητες σε μία οθόνη.</p></div><div class="emblem">🛡️</div></div><div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
  if role=="admin":
@@ -117,6 +118,10 @@ def home(req:Request):
  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
  for a in acts:
   body+='<div class="panel"><strong>'+esc(a["title"])+' • '+esc(a["day"])+'</strong> <span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span><p>Διαθέσιμοι: '+str(summary.get((a["id"],"Διαθέσιμος"),0))+' · Ίσως: '+str(summary.get((a["id"],"Ίσως διαθέσιμος"),0))+' · Μη διαθέσιμοι: '+str(summary.get((a["id"],"Μη διαθέσιμος"),0))+'</p>'
+  if role=="admin":
+   details=[r for r in available_rows if r["activity_id"]==a["id"]]
+   if details:
+    body+='<details><summary>Προβολή δηλώσεων μελών ('+str(len(details))+')</summary><div class="wrap"><table><tr><th>Μέλος</th><th>Διαθεσιμότητα</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td></tr>' for r in details)+'</table></div></details>'
   if a["active"]:
    if role=="member":
     body+='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><select name="status"><option>Διαθέσιμος</option><option>Ίσως διαθέσιμος</option><option>Μη διαθέσιμος</option></select><button>Δήλωση</button></form>'
