@@ -1,4 +1,5 @@
-import os, sqlite3, secrets, hashlib, hmac, html, json, base64, functools\nimport psycopg
+import os, sqlite3, secrets, hashlib, hmac, html, json, base64, functools
+import psycopg
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from fastapi import FastAPI, Request, Form
