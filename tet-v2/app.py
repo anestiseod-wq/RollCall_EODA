@@ -8,36 +8,63 @@ from starlette.middleware.sessions import SessionMiddleware
 app=FastAPI(title="TET RollCall")
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", secrets.token_hex(32)), https_only=os.environ.get("RENDER")=="true", same_site="lax")
 DB=os.environ.get("DB_PATH","/tmp/tet-rollcall.sqlite3")
+# This prototype must never be mistaken for persistent production storage.
+DEMO_MODE=os.environ.get("DEMO_MODE","false").lower()=="true"
 ADMIN_PIN=os.environ.get("ADMIN_PIN","")
 MEMBER_PIN=os.environ.get("MEMBER_PIN","")
 def connect():
  c=sqlite3.connect(DB); c.row_factory=sqlite3.Row; return c
 def init():
  with connect() as c:
-  c.executescript("""CREATE TABLE IF NOT EXISTS people(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE);
+  c.executescript("""CREATE TABLE IF NOT EXISTS people(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE,pin_hash TEXT);
 CREATE TABLE IF NOT EXISTS presence(id INTEGER PRIMARY KEY,person_id INTEGER NOT NULL,day TEXT NOT NULL,status TEXT NOT NULL,changed_by TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(person_id,day));
 CREATE TABLE IF NOT EXISTS activities(id INTEGER PRIMARY KEY,title TEXT NOT NULL,day TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS availability(id INTEGER PRIMARY KEY,activity_id INTEGER NOT NULL,person_id INTEGER NOT NULL,status TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(activity_id,person_id));
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT,action TEXT,detail TEXT,at TEXT);""")
 init()
+def hash_pin(pin,salt=None):
+ salt=salt or secrets.token_hex(16)
+ digest=hashlib.pbkdf2_hmac("sha256",pin.encode(),bytes.fromhex(salt),250000).hex()
+ return salt+":"+digest
+def verify_pin(pin,stored):
+ try:
+  salt,digest=stored.split(":")
+  return hmac.compare_digest(hash_pin(pin,salt).split(":")[1],digest)
+ except (ValueError,AttributeError):return False
 def now():return datetime.now().strftime("%Y-%m-%d %H:%M")
 def esc(x):return html.escape(str(x),quote=True)
 def auth(req):return req.session.get("role")
+def csrf(req):return req.session.setdefault("csrf",secrets.token_urlsafe(24))
+@app.middleware("http")
+async def protect_posts(req,call_next):
+ if req.method=="POST" and req.url.path!="/login":
+  from fastapi.responses import PlainTextResponse
+  token=(await req.form()).get("csrf","")
+  if not req.session.get("csrf") or not hmac.compare_digest(str(token),req.session["csrf"]):
+   return PlainTextResponse("Invalid request token",status_code=403)
+ return await call_next(req)
 def log(c,actor,action,detail):c.execute("INSERT INTO audit(actor,action,detail,at) VALUES(?,?,?,?)",(actor,action,detail,now()))
 def page(req,title,body):
  role=auth(req)
  theme=req.cookies.get("theme","dark")
  return HTMLResponse("""<!doctype html><html lang="el"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TET • """+esc(title)+"""</title><style>
-:root{font-family:system-ui,-apple-system,sans-serif}body{margin:0;background:#0c1425;color:#e9f2ff}body.light{background:#f3f6fb;color:#1a2841}header{display:flex;align-items:center;justify-content:space-between;padding:16px 5%;background:#13213a}body.light header{background:#fff}a{color:#72d4b1;text-decoration:none}nav{display:flex;gap:16px;flex-wrap:wrap}main{max-width:1080px;margin:24px auto;padding:0 16px}.panel{background:#172640;border:1px solid #30445e;border-radius:16px;padding:20px;margin:16px 0}body.light .panel{background:#fff;border-color:#dae3ef}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.stat{font-size:30px;font-weight:750;color:#6fe2b1}input,select,button{font:inherit;padding:11px;border-radius:9px;border:1px solid #63738b;margin:4px;background:#eef5ff;color:#15233a}button{background:#27b58a;color:#fff;border:0;font-weight:700;cursor:pointer}button.alt{background:#486384}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #516077;padding:10px}small,.muted{opacity:.72}.wrap{overflow:auto}.tag{border-radius:20px;padding:4px 9px;background:#30445e;color:#fff}form.inline{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center}h1{font-size:26px}h2{font-size:19px}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><strong>🟢 TET | Παρουσιολόγιο</strong><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
+:root{font-family:system-ui,-apple-system,sans-serif}body{margin:0;background:#0c1425;color:#e9f2ff}body.light{background:#f3f6fb;color:#1a2841}header{display:flex;align-items:center;justify-content:space-between;padding:16px 5%;background:#13213a}body.light header{background:#fff}a{color:#72d4b1;text-decoration:none}nav{display:flex;gap:16px;flex-wrap:wrap}main{max-width:1080px;margin:24px auto;padding:0 16px}.panel{background:#172640;border:1px solid #30445e;border-radius:16px;padding:20px;margin:16px 0}body.light .panel{background:#fff;border-color:#dae3ef}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.stat{font-size:30px;font-weight:750;color:#6fe2b1}input,select,button{font:inherit;padding:11px;border-radius:9px;border:1px solid #63738b;margin:4px;background:#eef5ff;color:#15233a}button{background:#27b58a;color:#fff;border:0;font-weight:700;cursor:pointer}button.alt{background:#486384}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #516077;padding:10px}small,.muted{opacity:.72}.wrap{overflow:auto}.tag{border-radius:20px;padding:4px 9px;background:#30445e;color:#fff}form.inline{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center}h1{font-size:26px}h2{font-size:19px}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><strong>🟢 TET | Παρουσιολόγιο</strong><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+JSON.stringify(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
- return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
+ with connect() as c:
+  people=c.execute("SELECT id,name FROM people ORDER BY name").fetchall()
+ opts=''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)
+ return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Μέλος (για είσοδο μέλους) <select name="person_id"><option value="0">—</option>__PEOPLE_OPTIONS__</select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
 @app.post("/login")
-def login(req:Request,role:str=Form(...),pin:str=Form(...)):
- expected=ADMIN_PIN if role=="admin" else MEMBER_PIN
- if not expected or not hmac.compare_digest(pin,expected):return HTMLResponse("Λανθασμένος κωδικός ή μη ρυθμισμένη πρόσβαση.",status_code=403)
- req.session["role"]=role;return go()
+def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)):
+ if role=="admin":
+  if not ADMIN_PIN or not hmac.compare_digest(pin,ADMIN_PIN):return HTMLResponse("Λανθασμένος κωδικός.",status_code=403)
+  req.session.clear();req.session["role"]="admin";return go()
+ if role!="member":return HTMLResponse("Invalid role",400)
+ with connect() as c:person=c.execute("SELECT pin_hash FROM people WHERE id=?",(person_id,)).fetchone()
+ if not person or not verify_pin(pin,person["pin_hash"]):return HTMLResponse("Λανθασμένος κωδικός.",status_code=403)
+ req.session.clear();req.session.update({"role":"member","person_id":person_id});return go()
 @app.get("/logout")
 def logout(req:Request):req.session.clear();return go("/login")
 @app.get("/theme")
@@ -71,12 +98,13 @@ def home(req:Request):
 def people(req:Request):
  if auth(req)!="admin":return go("/login")
  with connect() as c:rows=c.execute("SELECT * FROM people ORDER BY name").fetchall()
- return page(req,"Μέλη ΤΕΤ",'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td></tr>' for p in rows)+'</table></div></div>')
+ return page(req,"Μέλη ΤΕΤ",'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td></tr>' for p in rows)+'</table></div></div>')
 @app.post("/people")
-def addperson(req:Request,name:str=Form(...)):
+def addperson(req:Request,name:str=Form(...),pin:str=Form(...)):
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
+ if len(pin)<6 or not pin.isdigit():return HTMLResponse("PIN: τουλάχιστον 6 ψηφία",400)
  with connect() as c:
-  try:c.execute("INSERT INTO people(name) VALUES(?)",(name.strip(),));log(c,"Υπεύθυνος","Προσθήκη μέλους",name.strip())
+  try:c.execute("INSERT INTO people(name,pin_hash) VALUES(?,?)",(name.strip(),hash_pin(pin)));log(c,"Υπεύθυνος","Προσθήκη μέλους",name.strip())
   except sqlite3.IntegrityError:pass
  return go("/people")
 @app.post("/presence")
@@ -97,8 +125,9 @@ def activity(req:Request,title:str=Form(...),day:str=Form(...)):
   c.execute("INSERT INTO activities(title,day,created_at) VALUES(?,?,?)",(title,day,now()));log(c,"Υπεύθυνος","Άνοιγμα διαθεσιμότητας",title+" "+day)
  return go()
 @app.post("/availability")
-def availability(req:Request,activity_id:int=Form(...),person_id:int=Form(...),status:str=Form(...)):
- if auth(req)!="member":return HTMLResponse("Forbidden",403)
+def availability(req:Request,activity_id:int=Form(...),status:str=Form(...)):
+ if auth(req)!="member" or not req.session.get("person_id"):return HTMLResponse("Forbidden",403)
+ person_id=req.session["person_id"]
  if status not in ("Διαθέσιμος","Ίσως διαθέσιμος","Μη διαθέσιμος"):return HTMLResponse("Invalid",400)
  with connect() as c:
   a=c.execute("SELECT active FROM activities WHERE id=?",(activity_id,)).fetchone()
