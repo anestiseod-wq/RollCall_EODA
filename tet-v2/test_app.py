@@ -65,3 +65,13 @@ def test_availability_rejects_other_members_and_closed_event(tmp_path):
             assert db.execute("SELECT COUNT(*) n FROM availability WHERE person_id=?",(one,)).fetchone()["n"]==1
             db.execute("UPDATE activities SET active=0 WHERE id=?",(aid,))
         assert member.post("/availability",data={"activity_id":aid,"status":"Διαθέσιμος","csrf":token}).status_code==400
+
+def test_bundled_official_logos_are_served():
+    with TestClient(tet.app) as client:
+        for emblem in ("eoda","tele"):
+            response=client.get("/branding/"+emblem)
+            assert response.status_code==200
+            assert response.headers["content-type"].startswith("image/png")
+            assert response.content.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+            assert len(response.content)>1000
+        assert client.get("/branding/unknown").status_code==404
