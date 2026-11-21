@@ -1,0 +1,20 @@
+name: TET v2 tests
+on:
+  push:
+    paths:
+      - 'tet-v2/**'
+      - '.github/workflows/tet-v2-tests.yml'
+  pull_request:
+    paths:
+      - 'tet-v2/**'
+      - '.github/workflows/tet-v2-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r tet-v2/requirements.txt
+      - run: cd tet-v2 && pytest -q
