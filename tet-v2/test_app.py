@@ -41,7 +41,27 @@ def test_admin_member_attendance_availability(tmp_path):
         home=member.get("/")
         assert "Άσκηση" in home.text
         assert member.post("/availability",data={"activity_id":activity,"status":"Διαθέσιμος","csrf":csrf(home)}).status_code==200
-        assert member.get("/people").status_code==200
+        assert member.get("/people",follow_redirects=False).status_code==303
         with tet.connect() as db:
             assert db.execute("SELECT status FROM availability WHERE activity_id=? AND person_id=?",(activity,person)).fetchone()["status"]=="Διαθέσιμος"
             assert db.execute("SELECT status FROM presence WHERE person_id=?",(person,)).fetchone()["status"]=="Παρών"
+
+def test_availability_rejects_other_members_and_closed_event(tmp_path):
+    tet.DB=str(tmp_path/"security.sqlite")
+    tet.init()
+    with tet.connect() as db:
+        db.execute("INSERT INTO people(name,pin_hash) VALUES(?,?)",("Member One",tet.hash_pin("111111")))
+        db.execute("INSERT INTO people(name,pin_hash) VALUES(?,?)",("Member Two",tet.hash_pin("222222")))
+        db.execute("INSERT INTO activities(title,day,created_at) VALUES(?,?,?)",("Άσκηση","2027-01-01",tet.now()))
+        one=db.execute("SELECT id FROM people WHERE name='Member One'").fetchone()["id"]
+        two=db.execute("SELECT id FROM people WHERE name='Member Two'").fetchone()["id"]
+        aid=db.execute("SELECT id FROM activities").fetchone()["id"]
+    with TestClient(tet.app) as member:
+        assert member.post("/login",data={"role":"member","person_id":one,"pin":"111111"}).status_code==200
+        token=csrf(member.get("/"))
+        assert member.post("/availability",data={"activity_id":aid,"person_id":two,"status":"Διαθέσιμος","csrf":token}).status_code==200
+        with tet.connect() as db:
+            assert db.execute("SELECT COUNT(*) n FROM availability WHERE person_id=?",(two,)).fetchone()["n"]==0
+            assert db.execute("SELECT COUNT(*) n FROM availability WHERE person_id=?",(one,)).fetchone()["n"]==1
+            db.execute("UPDATE activities SET active=0 WHERE id=?",(aid,))
+        assert member.post("/availability",data={"activity_id":aid,"status":"Διαθέσιμος","csrf":token}).status_code==400
