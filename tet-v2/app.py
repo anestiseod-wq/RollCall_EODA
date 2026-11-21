@@ -51,6 +51,8 @@ def verify_pin(pin,stored):
   return hmac.compare_digest(hash_pin(pin,salt).split(":")[1],digest)
  except (ValueError,AttributeError):return False
 def now():return datetime.now().strftime("%Y-%m-%d %H:%M")
+def log(c,actor,action,detail):
+ execute(c,"INSERT INTO audit(actor,action,detail,at) VALUES(?,?,?,?)",(actor,action,detail,now()))
 def esc(x):return html.escape(str(x),quote=True)
 def auth(req):return req.session.get("role")
 def csrf(req):return req.session.setdefault("csrf",secrets.token_urlsafe(24))
