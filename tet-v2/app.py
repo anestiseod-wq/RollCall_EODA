@@ -157,6 +157,14 @@ def home(req:Request):
   if role=="admin" and a["active"]:
    body+='<form method="post" action="/activity-log"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><textarea name="entry" rows="3" maxlength="2000" required placeholder="Νέα ενημέρωση για τη δραστηριότητα..."></textarea><button>Προσθήκη στο ιστορικό</button></form>'
   body+='</details>'
+  yes=summary.get((a["id"],"Διαθέσιμος"),0)
+  maybe=summary.get((a["id"],"Ίσως διαθέσιμος"),0)
+  no=summary.get((a["id"],"Μη διαθέσιμος"),0)
+  responded=yes+maybe+no
+  total_members=len(people)
+  def pct(n):return round(100*n/total_members) if total_members else 0
+  body+='<div class="grid"><div class="panel" style="border-left:5px solid #16a34a"><strong style="color:#16a34a">'+str(pct(yes))+'%</strong><p>🟢 Διαθέσιμοι: '+str(yes)+'</p></div><div class="panel" style="border-left:5px solid #eab308"><strong style="color:#ca8a04">'+str(pct(maybe))+'%</strong><p>🟡 Ίσως: '+str(maybe)+'</p></div><div class="panel" style="border-left:5px solid #dc2626"><strong style="color:#dc2626">'+str(pct(no))+'%</strong><p>🔴 Μη διαθέσιμοι: '+str(no)+'</p></div></div>'
+  body+='<div style="display:flex;width:100%;height:14px;border-radius:9px;overflow:hidden;background:#94a3b8" aria-label="Ποσοστά διαθεσιμότητας"><div style="width:'+str(pct(yes))+'%;background:#16a34a"></div><div style="width:'+str(pct(maybe))+'%;background:#eab308"></div><div style="width:'+str(pct(no))+'%;background:#dc2626"></div></div><p>Απάντησαν: '+str(responded)+' / '+str(total_members)+' · Χωρίς απάντηση: '+str(max(0,total_members-responded))+' · Ποσοστά επί του συνόλου των μελών ΤΕΤ</p>'
   if role=="admin":
    details=[r for r in available_rows if r["activity_id"]==a["id"]]
    if details:
