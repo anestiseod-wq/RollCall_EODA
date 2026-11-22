@@ -34,6 +34,7 @@ def init():
   ]
   with connect() as c:
    for sql in statements:c.execute(sql)
+   c.execute("ALTER TABLE people ADD COLUMN IF NOT EXISTS callsign TEXT")
  else:
   with connect() as c:
    c.executescript("""CREATE TABLE IF NOT EXISTS people(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE,pin_hash TEXT);
@@ -41,6 +42,8 @@ CREATE TABLE IF NOT EXISTS presence(id INTEGER PRIMARY KEY,person_id INTEGER NOT
 CREATE TABLE IF NOT EXISTS activities(id INTEGER PRIMARY KEY,title TEXT NOT NULL,day TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS availability(id INTEGER PRIMARY KEY,activity_id INTEGER NOT NULL,person_id INTEGER NOT NULL,status TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(activity_id,person_id));
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT,action TEXT,detail TEXT,at TEXT);""")
+   columns=[r[1] for r in c.execute("PRAGMA table_info(people)").fetchall()]
+   if "callsign" not in columns:c.execute("ALTER TABLE people ADD COLUMN callsign TEXT")
 init()
 def hash_pin(pin,salt=None):
  salt=salt or secrets.token_hex(16)
@@ -105,8 +108,8 @@ def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
  with connect() as c:
-  people=execute(c,"SELECT id,name FROM people ORDER BY name").fetchall()
- opts=''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)
+  people=execute(c,"SELECT id,name,callsign FROM people ORDER BY name").fetchall()
+ opts=''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+(' — '+esc(p["callsign"]) if p["callsign"] else '')+'</option>' for p in people)
  return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Μέλος (για είσοδο μέλους) <select name="person_id"><option value="0">—</option>'+opts+'</select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
 @app.post("/login")
 def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)):
@@ -155,14 +158,14 @@ def home(req:Request):
 def people(req:Request):
  if auth(req)!="admin":return go("/login")
  with connect() as c:rows=execute(c,"SELECT * FROM people ORDER BY name").fetchall()
- return page(req,"Μέλη ΤΕΤ",'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td></tr>' for p in rows)+'</table></div></div>')
+ return page(req,"Μέλη ΤΕΤ",'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="callsign" placeholder="Διακριτικό (π.χ. ΤΕΤ 01)" maxlength="40"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td><td>'+esc(p["callsign"] or "—")+'</td></tr>' for p in rows)+'</table></div></div>')
 @app.post("/people")
-def addperson(req:Request,name:str=Form(...),pin:str=Form(...),csrf:str=Form(...)):
+def addperson(req:Request,name:str=Form(...),pin:str=Form(...),csrf:str=Form(...),callsign:str=Form("")):
  if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if len(pin)<6 or not pin.isdigit():return HTMLResponse("PIN: τουλάχιστον 6 ψηφία",400)
  with connect() as c:
-  try:execute(c,"INSERT INTO people(name,pin_hash) VALUES(?,?)",(name.strip(),hash_pin(pin)));log(c,"Υπεύθυνος","Προσθήκη μέλους",name.strip())
+  try:execute(c,"INSERT INTO people(name,pin_hash,callsign) VALUES(?,?,?)",(name.strip(),hash_pin(pin),callsign.strip()[:40]));log(c,"Υπεύθυνος","Προσθήκη μέλους",name.strip())
   except (sqlite3.IntegrityError, psycopg.errors.UniqueViolation):pass
  return go("/people")
 @app.post("/presence")
