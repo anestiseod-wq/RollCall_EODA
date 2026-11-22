@@ -35,6 +35,7 @@ def init():
   with connect() as c:
    for sql in statements:c.execute(sql)
    c.execute("ALTER TABLE people ADD COLUMN IF NOT EXISTS callsign TEXT")
+   c.execute("ALTER TABLE activities ADD COLUMN IF NOT EXISTS description TEXT")
  else:
   with connect() as c:
    c.executescript("""CREATE TABLE IF NOT EXISTS people(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE,pin_hash TEXT);
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS availability(id INTEGER PRIMARY KEY,activity_id INTEG
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT,action TEXT,detail TEXT,at TEXT);""")
    columns=[r[1] for r in c.execute("PRAGMA table_info(people)").fetchall()]
    if "callsign" not in columns:c.execute("ALTER TABLE people ADD COLUMN callsign TEXT")
+   activity_columns=[r[1] for r in c.execute("PRAGMA table_info(activities)").fetchall()]
+   if "description" not in activity_columns:c.execute("ALTER TABLE activities ADD COLUMN description TEXT")
 init()
 def hash_pin(pin,salt=None):
  salt=salt or secrets.token_hex(16)
@@ -139,10 +142,10 @@ def home(req:Request):
  body='<div class="hero"><div><strong>Κέντρο επιχειρησιακής εικόνας ΤΕΤ</strong><p>Παρουσίες, ετοιμότητα και προγραμματισμένες δραστηριότητες σε μία οθόνη.</p></div><div class="emblem">🛡️</div></div><div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
  if role=="admin":
   body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Καταχώριση παρουσίας</h2><form method="post" action="/presence"><select name="person_id" required>'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Παρών</option><option>Απών</option></select><button>Αποθήκευση / Επεξεργασία</button></form><h2 class="section-title"><span class="dot"></span> Σημερινές παρουσίες</h2><div class="wrap"><table><tr><th>Μέλος</th><th>Κατάσταση</th><th>Τελευταία αλλαγή</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td><td>'+esc(r["updated_at"])+'</td></tr>' for r in pres)+'</table></div></div>'
-  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Νέα διαθεσιμότητα</h2><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><button>Άνοιγμα</button></form></div>'
+  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Νέα διαθεσιμότητα</h2><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><textarea name="description" rows="3" maxlength="2000" placeholder="Περιγραφή / ιστορικό: τι πρόκειται να γίνει, οδηγίες, σημείο συνάντησης..."></textarea><button>Άνοιγμα</button></form></div>'
  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
  for a in acts:
-  body+='<div class="panel"><strong>'+esc(a["title"])+' • '+esc(a["day"])+'</strong> <span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span><p>Διαθέσιμοι: '+str(summary.get((a["id"],"Διαθέσιμος"),0))+' · Ίσως: '+str(summary.get((a["id"],"Ίσως διαθέσιμος"),0))+' · Μη διαθέσιμοι: '+str(summary.get((a["id"],"Μη διαθέσιμος"),0))+'</p>'
+  body+='<div class="panel"><strong>'+esc(a["title"])+' • '+esc(a["day"])+'</strong> <span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>' + ('<p style="white-space:pre-wrap">'+esc(a["description"])+'</p>' if a["description"] else '') + '<p>Διαθέσιμοι: '+str(summary.get((a["id"],"Διαθέσιμος"),0))+' · Ίσως: '+str(summary.get((a["id"],"Ίσως διαθέσιμος"),0))+' · Μη διαθέσιμοι: '+str(summary.get((a["id"],"Μη διαθέσιμος"),0))+'</p>'
   if role=="admin":
    details=[r for r in available_rows if r["activity_id"]==a["id"]]
    if details:
@@ -178,14 +181,14 @@ def presence(req:Request,person_id:int=Form(...),status:str=Form(...),csrf:str=F
   log(c,"Υπεύθυνος","Παρουσία",f"{person_id}: {status}")
  return go()
 @app.post("/activity")
-def activity(req:Request,title:str=Form(...),day:str=Form(...),csrf:str=Form(...)):
+def activity(req:Request,title:str=Form(...),day:str=Form(...),csrf:str=Form(...),description:str=Form("")):
  if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if title not in ("Πιθανή κινητοποίηση","Άσκηση","Άλλη δραστηριότητα"):return HTMLResponse("Invalid",400)
  try:datetime.strptime(day,"%Y-%m-%d")
  except ValueError:return HTMLResponse("Invalid date",400)
  with connect() as c:
-  execute(c,"INSERT INTO activities(title,day,created_at) VALUES(?,?,?)",(title,day,now()));log(c,"Υπεύθυνος","Άνοιγμα διαθεσιμότητας",title+" "+day)
+  execute(c,"INSERT INTO activities(title,day,created_at,description) VALUES(?,?,?,?)",(title,day,now(),description.strip()[:2000]));log(c,"Υπεύθυνος","Άνοιγμα διαθεσιμότητας",title+" "+day+" | "+description.strip()[:250])
  return go()
 @app.post("/availability")
 def availability(req:Request,activity_id:int=Form(...),status:str=Form(...),csrf:str=Form(...)):
