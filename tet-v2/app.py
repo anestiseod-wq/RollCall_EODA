@@ -140,6 +140,10 @@ def home(req:Request):
   acts=execute(c,"SELECT * FROM activities ORDER BY id DESC").fetchall()
   counts=execute(c,"SELECT activity_id,status,COUNT(*) n FROM availability GROUP BY activity_id,status").fetchall()
   available_rows=execute(c,"SELECT a.activity_id,a.status,p.name FROM availability a JOIN people p ON p.id=a.person_id ORDER BY p.name").fetchall() if role=="admin" else []
+  my_status={}
+  if role=="member":
+   rows=execute(c,"SELECT activity_id,status FROM availability WHERE person_id=?",(req.session["person_id"],)).fetchall()
+   my_status={r["activity_id"]:r["status"] for r in rows}
   log_rows=execute(c,"SELECT activity_id,entry,created_at FROM activity_log ORDER BY id ASC").fetchall()
   summary={(r["activity_id"],r["status"]):r["n"] for r in counts}
  body='<div class="hero"><div><strong>Κέντρο επιχειρησιακής εικόνας ΤΕΤ</strong><p>Παρουσίες, ετοιμότητα και προγραμματισμένες δραστηριότητες σε μία οθόνη.</p></div><div class="emblem">🛡️</div></div><div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
@@ -169,9 +173,16 @@ def home(req:Request):
    details=[r for r in available_rows if r["activity_id"]==a["id"]]
    if details:
     body+='<details><summary>Προβολή δηλώσεων μελών ('+str(len(details))+')</summary><div class="wrap"><table><tr><th>Μέλος</th><th>Διαθεσιμότητα</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td></tr>' for r in details)+'</table></div></details>'
+  if role=="member":
+   current=my_status.get(a["id"])
+   body+='<p>Η δήλωσή μου: <strong>'+esc(current or 'Χωρίς απάντηση')+'</strong></p>'
   if a["active"]:
    if role=="member":
-    body+='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><select name="status"><option>Διαθέσιμος</option><option>Ίσως διαθέσιμος</option><option>Μη διαθέσιμος</option></select><button>Δήλωση</button></form>'
+    form='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'">'
+    for status in ("Διαθέσιμος","Ίσως διαθέσιμος"):
+     form+='<button name="status" value="'+status+'">'+status+'</button>'
+    form+='</form>'
+    body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else form
    else:body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
   body+='</div>'
  body+='</div>'
@@ -227,9 +238,11 @@ def availability(req:Request,activity_id:int=Form(...),status:str=Form(...),csrf
  if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="member" or not req.session.get("person_id"):return HTMLResponse("Forbidden",403)
  person_id=req.session["person_id"]
- if status not in ("Διαθέσιμος","Ίσως διαθέσιμος","Μη διαθέσιμος"):return HTMLResponse("Invalid",400)
+ if status not in ("Διαθέσιμος","Ίσως διαθέσιμος"):return HTMLResponse("Invalid",400)
  with connect() as c:
-  a=execute(c,"SELECT active FROM activities WHERE id=?",(activity_id,)).fetchone()
+  if not DATABASE_URL:c.execute("BEGIN IMMEDIATE")
+  lock=" FOR UPDATE" if DATABASE_URL else ""
+  a=execute(c,"SELECT active FROM activities WHERE id=?"+lock,(activity_id,)).fetchone()
   if not a or not a["active"]:return HTMLResponse("Η δήλωση έχει κλείσει",400)
   execute(c,"INSERT INTO availability(activity_id,person_id,status,updated_at) VALUES(?,?,?,?) ON CONFLICT(activity_id,person_id) DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",(activity_id,person_id,status,now()))
   log(c,"Μέλος","Διαθεσιμότητα",f"{activity_id}/{person_id}: {status}")
