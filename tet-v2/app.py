@@ -82,33 +82,29 @@ def branding(logo:str):
  return Response(status_code=404)
 def page(req,title,body):
  role=auth(req)
- theme=req.cookies.get("theme","dark")
+ theme=req.cookies.get("theme","light")
  return HTMLResponse("""<!doctype html><html lang="el"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TET • """+esc(title)+"""</title><style>
-:root{font-family:system-ui,-apple-system,sans-serif}body{margin:0;background:#0c1425;color:#e9f2ff}body.light{background:#f3f6fb;color:#1a2841}header{display:flex;align-items:center;justify-content:space-between;padding:16px 5%;background:#13213a}body.light header{background:#fff}a{color:#72d4b1;text-decoration:none}nav{display:flex;gap:16px;flex-wrap:wrap}main{max-width:1080px;margin:24px auto;padding:0 16px}.panel{background:#172640;border:1px solid #30445e;border-radius:16px;padding:20px;margin:16px 0}body.light .panel{background:#fff;border-color:#dae3ef}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.stat{font-size:30px;font-weight:750;color:#6fe2b1}input,select,button{font:inherit;padding:11px;border-radius:9px;border:1px solid #63738b;margin:4px;background:#eef5ff;color:#15233a}button{background:#27b58a;color:#fff;border:0;font-weight:700;cursor:pointer}button.alt{background:#486384}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #516077;padding:10px}small,.muted{opacity:.72}.wrap{overflow:auto}.tag{border-radius:20px;padding:4px 9px;background:#30445e;color:#fff}form.inline{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center}h1{font-size:26px}h2{font-size:19px}
-:root{color-scheme:dark;--bg:#091527;--surface:#14263d;--surface2:#1c3450;--ink:#eef7ff;--line:#35536c;--muted:#a5bbcc;--accent:#48dfb2}
-body{background:radial-gradient(ellipse at 10% -10%,#1b4258 0,transparent 48%),var(--bg);color:var(--ink);min-height:100vh}
-body.light{color-scheme:light;--bg:#edf4f8;--surface:#fff;--surface2:#e9f2f7;--ink:#18334a;--line:#d4e2eb;--muted:#577080;--accent:#087f67;background:linear-gradient(160deg,#eaf7f3,#edf4f8 50%,#f8fafc);color:var(--ink)}
-header{background:linear-gradient(110deg,#142e44,#0c2336);border-bottom:1px solid #35536c;box-shadow:0 8px 28px #0002;gap:12px}
-body.light header{background:#fff;border-color:var(--line)}
-header strong{font-size:clamp(15px,2.4vw,21px);letter-spacing:.3px}
-nav a{display:inline-flex;align-items:center;border:1px solid #4d6d81;padding:8px 11px;border-radius:10px;color:#d8fff1}
-body.light nav a{color:#17644f;border-color:#d4e2eb}
-main{max-width:1180px}h1{font-size:clamp(25px,3.5vw,34px);letter-spacing:-.6px;margin:26px 0}h2{margin-top:0}
-.panel{background:linear-gradient(160deg,var(--surface),var(--surface2));border:1px solid var(--line);box-shadow:0 10px 25px #00000018;border-radius:20px;padding:clamp(16px,2.4vw,25px)}
-body.light .panel{background:var(--surface);border-color:var(--line)}
-.grid{grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:16px}
-.grid>.panel{min-height:100px;position:relative;overflow:hidden}
-.grid>.panel:before{content:"";position:absolute;top:0;left:0;width:5px;height:100%;background:linear-gradient(var(--accent),#f4c65e)}
-.stat{font-size:clamp(34px,4vw,48px);line-height:1.1;color:var(--accent);margin-bottom:9px}
-input,select{background:var(--surface2);color:var(--ink);border:1px solid var(--line);min-height:43px;max-width:100%}
-button{background:#169d7e;min-height:43px;padding:10px 17px;box-shadow:0 3px 8px #0002}
-button:hover{filter:brightness(1.12)}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #f4c65e;outline-offset:2px}
-.tag{background:#206d5c;color:#f1fff9}td,th{border-color:var(--line)}th{color:var(--accent)}.muted,small{color:var(--muted);opacity:1}
-.section-title{display:flex;align-items:center;gap:10px}.section-title .dot{display:inline-block;width:11px;height:11px;background:var(--accent);border-radius:50%}
-.hero{border:1px solid var(--line);border-radius:22px;padding:23px;background:linear-gradient(105deg,#164b55,#1c344d 65%,#233e56);margin-bottom:18px;display:flex;justify-content:space-between;gap:16px;align-items:center}
-.hero strong{font-size:23px;color:#fff}.hero p{color:#d1e9e7;margin:8px 0 0}.hero .emblem{font-size:44px;opacity:.9}
-@media(max-width:640px){header{padding:13px 16px;align-items:flex-start;flex-direction:column}nav{gap:7px}nav a{padding:6px 9px;font-size:13px}main{margin:10px auto}.hero{padding:17px}.hero strong{font-size:19px}.hero .emblem{font-size:30px}table{font-size:13px}}
-.brand{display:flex;align-items:center;gap:11px}.brand img{width:49px;height:49px;object-fit:contain;filter:drop-shadow(0 2px 5px #0003)}@media(max-width:640px){.brand img{width:42px;height:42px}}.login-card{max-width:27rem;margin:1rem auto}.signin,.signin label{display:grid;gap:.45rem}.signin{gap:.85rem;margin:.75rem 0}.signin :is(input,select,button){margin:0}.login-card details{margin-top:1.5rem}.choice{display:flex;gap:.6rem;flex-wrap:wrap}.choice button{flex:1 1 10rem;margin:0}.yes,.choice .yes{background:#82e3b5;color:#103c2b}.maybe,.choice .maybe{background:#ffd372;color:#493200}.answer{display:inline-block;padding:.45rem .8rem;border-radius:10px}summary{cursor:pointer;padding:.55rem 0}.action-card{max-width:48rem;margin:1rem auto}.action-card h2{margin-bottom:.4rem}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
+*{box-sizing:border-box}
+:root{font:100%/1.5 system-ui,sans-serif}
+body{--bg:#211b22;--paper:#302831;--ink:#fff6ee;--muted:#d5c4cb;--line:#655561;--accent:#ff947c;color-scheme:dark;background:var(--bg);color:var(--ink);margin:0;min-height:100vh}
+body.light{--bg:#fff8ed;--paper:#fff;--ink:#33262f;--muted:#705d67;--line:#d8c9c6;--accent:#9b351f;color-scheme:light}
+header{background:#482442;color:#fff;border-bottom:4px solid #ff795e;padding:.7rem max(1rem,calc((100vw - 60rem)/2));display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem}
+.brand,nav{display:flex;align-items:center;gap:.65rem}.brand img{width:38px;height:38px;object-fit:contain}.brand strong{font-size:1.05rem}
+nav{flex-wrap:wrap}nav a{color:#fff;text-decoration:none;padding:.45rem}.muted,small{color:var(--muted)}
+main{max-width:60rem;margin:1.5rem auto;padding:0 1rem}main:has(.login-card),main:has(.member-view){max-width:39rem}
+h1,h2,p{margin:.25rem 0 .8rem}h1{font-size:clamp(1.6rem,4vw,2.3rem);line-height:1.15}h2{font-size:1.25rem}
+.panel{padding:1rem;margin:.85rem 0;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.action-card,.login-card{border-top:5px solid #ff795e}.action-head{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.action-head time{color:var(--muted);font-weight:600}
+button,input,select,textarea{font:inherit;border-radius:8px;padding:.65rem .8rem;max-width:100%}
+input,textarea,select{background:var(--paper);color:var(--ink);border:1px solid var(--line)}textarea{width:100%;resize:vertical}
+button{border:0;background:#ff896f;color:#351613;cursor:pointer;font-weight:700;min-height:46px}button.alt{background:#e7cfeb;color:#422242}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.signin,.signin label{display:grid;gap:.35rem}.signin{gap:.85rem}.login-card details{margin-top:1rem}
+.choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));gap:.6rem;margin:.85rem 0}
+.yes{background:#ff896f;color:#351613}.maybe{background:#ffd45e;color:#3b2903}.answer{display:inline-block;padding:.45rem .75rem;border-radius:8px;font-weight:600}
+summary{color:var(--muted);cursor:pointer;padding:.5rem 0;font-weight:600}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.55rem}.grid .panel{margin:.3rem 0}.stat{font-size:1.65rem;font-weight:750;color:var(--accent)}.tag{color:var(--muted);font-size:.9rem}.wrap{overflow:auto}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:.55rem;border-bottom:1px solid var(--line)}
+@media(max-width:560px){header{gap:.2rem}.brand img{width:31px;height:31px}main{margin:1rem auto}nav a{font-size:.9rem}.grid{gap:.3rem}}
+</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+("""<a href="/">Αρχική</a><a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
@@ -132,7 +128,7 @@ def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)
 def logout(req:Request):req.session.clear();return go("/login")
 @app.get("/theme")
 def theme(req:Request):
- r=go(req.headers.get("referer","/"));r.set_cookie("theme","light" if req.cookies.get("theme")!="light" else "dark",max_age=31536000,samesite="lax");return r
+ r=go(req.headers.get("referer","/"));r.set_cookie("theme","light" if req.cookies.get("theme","light")!="light" else "dark",max_age=31536000,samesite="lax");return r
 @app.get("/")
 def home(req:Request):
  role=auth(req)
@@ -149,17 +145,23 @@ def home(req:Request):
    my_status={r["activity_id"]:r["status"] for r in rows}
   log_rows=execute(c,"SELECT activity_id,entry,created_at FROM activity_log ORDER BY id ASC").fetchall()
   summary={(r["activity_id"],r["status"]):r["n"] for r in counts}
- body='<div class="hero"><div><strong>Κέντρο επιχειρησιακής εικόνας ΤΕΤ</strong><p>Παρουσίες, ετοιμότητα και προγραμματισμένες δραστηριότητες σε μία οθόνη.</p></div><div class="emblem">🛡️</div></div><div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
+ body='<div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
  if role=="admin":
   body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Καταχώριση παρουσίας</h2><form method="post" action="/presence"><select name="person_id" required>'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Παρών</option><option>Απών</option></select><button>Αποθήκευση / Επεξεργασία</button></form><h2 class="section-title"><span class="dot"></span> Σημερινές παρουσίες</h2><div class="wrap"><table><tr><th>Μέλος</th><th>Κατάσταση</th><th>Τελευταία αλλαγή</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td><td>'+esc(r["updated_at"])+'</td></tr>' for r in pres)+'</table></div></div>'
   body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Νέα διαθεσιμότητα</h2><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><textarea name="description" rows="3" maxlength="2000" placeholder="Περιγραφή / ιστορικό: τι πρόκειται να γίνει, οδηγίες, σημείο συνάντησης..."></textarea><button>Άνοιγμα</button></form></div>'
  if role=="member":
-  body=''
+  body='<section class="member-view">'
   acts=sorted(acts,key=lambda a:(not a["active"],a["id"] in my_status))
-  if not any(a["active"] for a in acts):body='<p>Δεν υπάρχει ανοιχτή δράση.</p>'
+  if not any(a["active"] for a in acts):body+='<p class="panel">Δεν υπάρχει ανοιχτή δράση.</p>'
  else:body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
+ archive_open=False
  for a in acts:
-  body+='<div class="panel action-card"><h2>'+esc(a["title"])+' · '+esc(a["day"])+'</h2><span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>'
+  if role=="member" and not a["active"] and not archive_open:
+   archive_open=True
+   body+='<details><summary>Κλειστές δράσεις</summary>'
+  date_label='/'.join(a["day"].split('-')[::-1])
+  body+='<div class="panel action-card"><div class="action-head"><h2>'+esc(a["title"])+'</h2><time datetime="'+esc(a["day"])+'">'+esc(date_label)+'</time></div>'
+  if role=="admin":body+='<span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>'
   if a["description"]:body+='<p style="white-space:pre-wrap">'+esc(a["description"])+'</p>'
   if role=="member":
    current=my_status.get(a["id"])
@@ -168,8 +170,9 @@ def home(req:Request):
     body+='<p class="answer '+color+'">Η δήλωσή μου: <strong>'+esc(current)+'</strong></p>'
    if a["active"]:
     form='<form class="choice" method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="yes" name="status" value="Διαθέσιμος">Διαθέσιμος</button><button class="maybe" name="status" value="Ίσως διαθέσιμος">Ίσως διαθέσιμος</button></form>'
-    body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else '<p>Είσαι διαθέσιμος για τη δράση;</p>'+form
+    body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else form
    elif not current:body+='<p>Χωρίς απάντηση</p>'
+  if role=="member":body+='<details><summary>Λεπτομέρειες δράσης</summary>'
   entries=[r for r in log_rows if r["activity_id"]==a["id"]]
   body+='<details><summary>Ημερολόγιο δράσης ('+str(len(entries))+')</summary>'
   if entries:
@@ -178,7 +181,7 @@ def home(req:Request):
   if role=="admin" and a["active"]:
    body+='<form method="post" action="/activity-log"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><textarea name="entry" rows="3" maxlength="2000" required placeholder="Νέα ενημέρωση για τη δραστηριότητα..."></textarea><button>Προσθήκη στο ιστορικό</button></form>'
   body+='</details>'
-  if role=="member":body+='<details><summary>Διαθεσιμότητα ομάδας</summary>'
+  if role=="member":body+='<h2>Διαθεσιμότητα ομάδας</h2>'
   yes=summary.get((a["id"],"Διαθέσιμος"),0)
   maybe=summary.get((a["id"],"Ίσως διαθέσιμος"),0)
   no=summary.get((a["id"],"Μη διαθέσιμος"),0)
@@ -195,7 +198,9 @@ def home(req:Request):
   if a["active"] and role=="admin":
    body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
   body+='</div>'
- if role=="member":return page(req,"Η διαθεσιμότητά μου",body)
+ if role=="member":
+  if archive_open:body+='</details>'
+  return page(req,"Η διαθεσιμότητά μου",body+'</section>')
  body+='</div>'
  return page(req,"Κεντρική εικόνα",body)
 @app.get("/people")
