@@ -1,5 +1,6 @@
 import os, sqlite3, secrets, hashlib, hmac, html, json, base64, functools
 import psycopg
+from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from fastapi import FastAPI, Request, Form
@@ -49,6 +50,8 @@ CREATE TABLE IF NOT EXISTS activity_log(id INTEGER PRIMARY KEY,activity_id INTEG
    if "callsign" not in columns:c.execute("ALTER TABLE people ADD COLUMN callsign TEXT")
    activity_columns=[r[1] for r in c.execute("PRAGMA table_info(activities)").fetchall()]
    if "description" not in activity_columns:c.execute("ALTER TABLE activities ADD COLUMN description TEXT")
+ with connect() as c:
+  execute(c,"CREATE TABLE IF NOT EXISTS procedure_checks(period TEXT NOT NULL,item TEXT NOT NULL,PRIMARY KEY(period,item))")
 init()
 def hash_pin(pin,salt=None):
  salt=salt or secrets.token_hex(16)
@@ -104,7 +107,8 @@ button{border:0;background:#ff896f;color:#351613;cursor:pointer;font-weight:700;
 .yes{background:#ff896f;color:#351613}.maybe{background:#ffd45e;color:#3b2903}.answer{display:inline-block;padding:.45rem .75rem;border-radius:8px;font-weight:600}
 summary{color:var(--muted);cursor:pointer;padding:.5rem 0;font-weight:600}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.55rem}.grid .panel{margin:.3rem 0}.stat{font-size:1.65rem;font-weight:750;color:var(--accent)}.tag{color:var(--muted);font-size:.9rem}.wrap{overflow:auto}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:.55rem;border-bottom:1px solid var(--line)}
 @media(max-width:560px){header{gap:.2rem}.brand img{width:31px;height:31px}main{margin:1rem auto}nav a{font-size:.9rem}.grid{gap:.3rem}}
-</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+("""<a href="/">Αρχική</a><a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
+.checklist{max-width:42rem}.checklist h2{border-bottom:3px solid #ff896f;padding-bottom:.55rem}.checkrow{background:transparent;color:var(--ink);text-align:left;display:flex;align-items:center;width:100%;gap:.7rem;border-radius:0;border-bottom:1px solid var(--line);font-weight:500;padding:.55rem .2rem}.checkrow span{width:1.45rem;height:1.45rem;border:2px solid var(--muted);border-radius:5px;flex:none;text-align:center;line-height:1.15}.checkrow[aria-checked=true] span{background:#ffd45e;border-color:#ffd45e;color:#392a11}.checkrow:focus-visible{outline-offset:-3px}.checklist h3{margin:0;font-size:1.1rem}
+</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+('<a href="/">Αρχική</a><a href="/procedures">Διαδικασίες</a>' if role else "")+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
@@ -282,3 +286,70 @@ def health():
   return {"ok":True,"database":"postgresql" if DATABASE_URL else "sqlite","persistent_database":bool(DATABASE_URL)}
  except Exception:
   return Response(content=json.dumps({"ok":False,"database":"unavailable"}),media_type="application/json",status_code=503)
+
+WEEKLY_GROUPS = [
+ ("Ενεργοποίηση κέντρου", [
+  ("pc", "Ενεργοποίηση υπολογιστών"), ("pc-updates", "Έλεγχος ενημερώσεων"),
+  ("center-aetos", "Έλεγχος ΑΕΤΟΥ"), ("aetos-fleet", "Στον ΑΕΤΟ φαίνονται τα ΕΟΔΑ 1, 2, 3, 4 και το σκάφος")]),
+ ("Ενεργοποίηση ασυρμάτων", [
+  ("radio-function", "Έλεγχος καλής λειτουργίας"), ("radio-power", "Έλεγχος τροφοδοτικού"),
+  ("radio-sound", "Έλεγχος ήχου"), ("radio-mic", "Έλεγχος μικροφώνου"),
+  ("repeater", "Έλεγχος λειτουργίας αναμεταδότη")]),
+ ("Έλεγχος λειτουργίας φορητών ασυρμάτων", [
+  ("portable-battery", "Έλεγχος μπαταρίας"), ("portable-antenna", "Έλεγχος κεραίας"),
+  ("portable-rx", "Δοκιμή λήψης"), ("portable-tx", "Δοκιμή εκπομπής")]),
+ ("Έλεγχος των τάμπλετ των ΕΕΠ", [
+  ("tablet-battery", "Έλεγχος μπαταρίας"), ("tablet-5g", "Έλεγχος 5G"),
+  ("tablet-updates", "Έλεγχος ενημερώσεων"), ("tablet-viber", "Έλεγχος Viber"),
+  ("tablet-aetos", "Έλεγχος ΑΕΤΟΥ"), ("tablet-app", "Έλεγχος εφαρμογής")]),
+ ("Λοιπά", [("power-station", "Έλεγχος power station"), ("hotspot", "Έλεγχος hotspot")]),
+ ("Έλεγχος οχημάτων", [
+  ("vehicle-radio", "Έλεγχος ασυρμάτων"), ("vehicle-antenna", "Έλεγχος κεραίας ασυρμάτου"),
+  ("vehicle-tx", "Δοκιμή εκπομπής ασυρμάτου"), ("vehicle-rx", "Δοκιμή λήψης ασυρμάτου"),
+  ("vehicle-aetos", "Έλεγχος ΑΕΤΟΥ")])
+]
+HALF_YEAR_GROUPS = [("", [("half-check", "1. Έλεγχος")])]
+
+def procedure_periods():
+ today = datetime.now(ZoneInfo("Europe/Athens")).date()
+ monday = today - timedelta(days=today.weekday())
+ sunday = monday + timedelta(days=6)
+ half = 1 if today.month <= 6 else 2
+ return [
+  ("week-" + monday.isoformat(), "Εβδομαδιαίες διαδικασίες",
+   f"{monday:%d/%m} – {sunday:%d/%m/%Y}", WEEKLY_GROUPS),
+  (f"half-{today.year}-{half}", "Εξαμηνιαίος έλεγχος",
+   ("Ιανουάριος – Ιούνιος " if half == 1 else "Ιούλιος – Δεκέμβριος ") + str(today.year), HALF_YEAR_GROUPS)
+ ]
+
+@app.get("/procedures")
+def procedures(req:Request):
+ if not auth(req):return go("/login")
+ parts=['<div class="checklist">']
+ with connect() as c:
+  for period,title,dates,groups in procedure_periods():
+   rows=execute(c,"SELECT item FROM procedure_checks WHERE period=?",(period,)).fetchall()
+   done={row["item"] for row in rows}
+   items={key for _,group in groups for key,_ in group}
+   parts.append(f'<section><h2>{title}</h2><p>{dates} · {len(done & items)}/{len(items)} τσεκαρισμένα</p>')
+   for number,(heading,group) in enumerate(groups,1):
+    parts.append('<div class="panel">')
+    if heading:parts.append(f'<h3>{number}. {heading}</h3>')
+    for key,label in group:
+     checked=key in done
+     parts.append(f'<form id="{key}" method="post" action="/procedures"><input type="hidden" name="period" value="{period}"><input type="hidden" name="item" value="{key}"><button class="checkrow" role="checkbox" aria-checked="{str(checked).lower()}" name="done" value="{int(not checked)}"><span aria-hidden="true">{"✓" if checked else ""}</span>{label}</button></form>')
+    parts.append('</div>')
+   parts.append('</section>')
+ return page(req,"Διαδικασίες","".join(parts)+'</div>')
+
+@app.post("/procedures")
+def save_procedure(req:Request, period:str=Form(...), item:str=Form(...), done:int=Form(...), csrf:str=Form(...)):
+ if not auth(req):return go("/login")
+ if not valid_csrf(req,csrf):return HTMLResponse("Μη έγκυρο αίτημα.",403)
+ allowed={p:{key for _,group in groups for key,_ in group} for p,_,_,groups in procedure_periods()}
+ if period not in allowed:return HTMLResponse('Η περίοδος άλλαξε. <a href="/procedures">Άνοιγμα τρέχουσας λίστας</a>',409)
+ if item not in allowed[period] or done not in (0,1):return HTMLResponse("Μη έγκυρος έλεγχος.",400)
+ with connect() as c:
+  if done:execute(c,"INSERT INTO procedure_checks(period,item) VALUES(?,?) ON CONFLICT(period,item) DO NOTHING",(period,item))
+  else:execute(c,"DELETE FROM procedure_checks WHERE period=? AND item=?",(period,item))
+ return go("/procedures#"+item)
