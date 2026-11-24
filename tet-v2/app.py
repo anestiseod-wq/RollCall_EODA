@@ -111,7 +111,7 @@ button{border:0;background:#ff896f;color:#351613;cursor:pointer;font-weight:700;
 summary{color:var(--muted);cursor:pointer;padding:.5rem 0;font-weight:600}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.55rem}.grid .panel{margin:.3rem 0}.stat{font-size:1.65rem;font-weight:750;color:var(--accent)}.tag{color:var(--muted);font-size:.9rem}.wrap{overflow:auto}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:.55rem;border-bottom:1px solid var(--line)}
 @media(max-width:560px){header{gap:.2rem}.brand img{width:31px;height:31px}main{margin:1rem auto}nav a{font-size:.9rem}.grid{gap:.3rem}}
 .checklist{max-width:42rem}.checklist h2{border-bottom:3px solid #ff896f;padding-bottom:.55rem}.checkrow{background:transparent;color:var(--ink);text-align:left;display:flex;align-items:center;width:100%;gap:.7rem;border-radius:0;border-bottom:1px solid var(--line);font-weight:500;padding:.55rem .2rem}.checkrow span{width:1.45rem;height:1.45rem;border:2px solid var(--muted);border-radius:5px;flex:none;text-align:center;line-height:1.15}.checkrow[aria-checked=true] span{background:#ffd45e;border-color:#ffd45e;color:#392a11}.checkrow:focus-visible{outline-offset:-3px}.checklist h3{margin:0;font-size:1.1rem}
-.history-link{color:var(--accent);font-weight:650}.report{margin-left:2.4rem}.report summary{font-size:.88rem}.issue{white-space:pre-wrap;overflow-wrap:anywhere}.event{border-bottom:1px solid var(--line);padding:.6rem 0}.event small{display:block}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+('<a href="/">Αρχική</a><a href="/procedures">Διαδικασίες</a>' if role else "")+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
+.history-link{color:var(--accent);font-weight:650}.report{margin-left:2.4rem}.report summary{font-size:.88rem}.issue{white-space:pre-wrap;overflow-wrap:anywhere}.event{border-bottom:1px solid var(--line);padding:.6rem 0}.event small{display:block}.arrived{background:#b2efa7;color:#153a18}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+('<a href="/">Αρχική</a><a href="/procedures">Διαδικασίες</a>' if role else "")+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
@@ -142,7 +142,7 @@ def home(req:Request):
  if not role:return go("/login")
  with connect() as c:
   people=execute(c,"SELECT * FROM people ORDER BY name").fetchall()
-  pres=execute(c,"SELECT p.*,people.name FROM presence p JOIN people ON people.id=p.person_id WHERE day=? ORDER BY people.name",(datetime.now().strftime("%Y-%m-%d"),)).fetchall()
+  pres=execute(c,"SELECT p.*,people.name FROM presence p JOIN people ON people.id=p.person_id WHERE day=? ORDER BY people.name",(datetime.now(ZoneInfo("Europe/Athens")).strftime("%Y-%m-%d"),)).fetchall()
   acts=execute(c,"SELECT * FROM activities ORDER BY id DESC").fetchall()
   counts=execute(c,"SELECT activity_id,status,COUNT(*) n FROM availability GROUP BY activity_id,status").fetchall()
   available_rows=execute(c,"SELECT a.activity_id,a.status,p.name FROM availability a JOIN people p ON p.id=a.person_id ORDER BY p.name").fetchall() if role=="admin" else []
@@ -173,9 +173,11 @@ def home(req:Request):
   if role=="member":
    current=my_status.get(a["id"])
    if current:
-    color={"Διαθέσιμος":"yes","Ίσως διαθέσιμος":"maybe"}.get(current,"")
+    color={"Διαθέσιμος":"yes","Ίσως διαθέσιμος":"maybe","Παρών":"arrived"}.get(current,"")
     body+='<p class="answer '+color+'">Η δήλωσή μου: <strong>'+esc(current)+'</strong></p>'
-   if a["active"]:
+   if a["active"] and current=="Διαθέσιμος":
+    body+='<form class="choice" method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="arrived" name="status" value="Παρών">Παρών</button></form>'
+   if a["active"] and current!="Παρών":
     form='<form class="choice" method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="yes" name="status" value="Διαθέσιμος">Διαθέσιμος</button><button class="maybe" name="status" value="Ίσως διαθέσιμος">Ίσως διαθέσιμος</button></form>'
     body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else form
    elif not current:body+='<p>Χωρίς απάντηση</p>'
@@ -189,7 +191,9 @@ def home(req:Request):
    body+='<form method="post" action="/activity-log"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><textarea name="entry" rows="3" maxlength="2000" required placeholder="Νέα ενημέρωση για τη δραστηριότητα..."></textarea><button>Προσθήκη στο ιστορικό</button></form>'
   body+='</details>'
   if role=="member":body+='<h2>Διαθεσιμότητα ομάδας</h2>'
-  yes=summary.get((a["id"],"Διαθέσιμος"),0)
+  present=summary.get((a["id"],"Παρών"),0)
+  yes=summary.get((a["id"],"Διαθέσιμος"),0)+present
+  body+='<p><strong>Παρόντες στη δράση: '+str(present)+'</strong></p>'
   maybe=summary.get((a["id"],"Ίσως διαθέσιμος"),0)
   no=summary.get((a["id"],"Μη διαθέσιμος"),0)
   responded=yes+maybe+no
@@ -230,7 +234,7 @@ def presence(req:Request,person_id:int=Form(...),status:str=Form(...),csrf:str=F
  if auth(req)!="admin":return HTMLResponse("Forbidden",403)
  if status not in ("Παρών","Απών"):return HTMLResponse("Invalid",400)
  with connect() as c:
-  execute(c,"INSERT INTO presence(person_id,day,status,changed_by,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(person_id,day) DO UPDATE SET status=excluded.status,changed_by=excluded.changed_by,updated_at=excluded.updated_at",(person_id,datetime.now().strftime("%Y-%m-%d"),status,"Υπεύθυνος",now()))
+  execute(c,"INSERT INTO presence(person_id,day,status,changed_by,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(person_id,day) DO UPDATE SET status=excluded.status,changed_by=excluded.changed_by,updated_at=excluded.updated_at",(person_id,datetime.now(ZoneInfo("Europe/Athens")).strftime("%Y-%m-%d"),status,"Υπεύθυνος",now()))
   log(c,"Υπεύθυνος","Παρουσία",f"{person_id}: {status}")
  return go()
 @app.post("/activity")
@@ -261,12 +265,21 @@ def availability(req:Request,activity_id:int=Form(...),status:str=Form(...),csrf
  if not valid_csrf(req,csrf):return HTMLResponse("Invalid request token",403)
  if auth(req)!="member" or not req.session.get("person_id"):return HTMLResponse("Forbidden",403)
  person_id=req.session["person_id"]
- if status not in ("Διαθέσιμος","Ίσως διαθέσιμος"):return HTMLResponse("Invalid",400)
+ if status not in ("Διαθέσιμος","Ίσως διαθέσιμος","Παρών"):return HTMLResponse("Invalid",400)
  with connect() as c:
   if not DATABASE_URL:c.execute("BEGIN IMMEDIATE")
   lock=" FOR UPDATE" if DATABASE_URL else ""
   a=execute(c,"SELECT active FROM activities WHERE id=?"+lock,(activity_id,)).fetchone()
   if not a or not a["active"]:return HTMLResponse("Η δήλωση έχει κλείσει",400)
+  previous=execute(c,"SELECT status FROM availability WHERE activity_id=? AND person_id=?",(activity_id,person_id)).fetchone()
+  old=previous["status"] if previous else None
+  if old==status:return go()
+  if old=="Παρών":return HTMLResponse("Η άφιξη έχει ήδη καταχωριστεί.",409)
+  if status=="Παρών":
+   if old!="Διαθέσιμος":return HTMLResponse("Δήλωσε πρώτα διαθέσιμος για τη δράση.",409)
+   arrival=datetime.now(ZoneInfo("Europe/Athens"))
+   stamp=arrival.strftime("%Y-%m-%d %H:%M")
+   execute(c,"INSERT INTO presence(person_id,day,status,changed_by,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(person_id,day) DO UPDATE SET status=excluded.status,changed_by=excluded.changed_by,updated_at=excluded.updated_at",(person_id,arrival.date().isoformat(),status,"Μέλος",stamp))
   execute(c,"INSERT INTO availability(activity_id,person_id,status,updated_at) VALUES(?,?,?,?) ON CONFLICT(activity_id,person_id) DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",(activity_id,person_id,status,now()))
   log(c,"Μέλος","Διαθεσιμότητα",f"{activity_id}/{person_id}: {status}")
  return go()
