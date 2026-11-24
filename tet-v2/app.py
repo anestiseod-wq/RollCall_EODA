@@ -108,14 +108,17 @@ button:hover{filter:brightness(1.12)}button:focus-visible,a:focus-visible,input:
 .hero{border:1px solid var(--line);border-radius:22px;padding:23px;background:linear-gradient(105deg,#164b55,#1c344d 65%,#233e56);margin-bottom:18px;display:flex;justify-content:space-between;gap:16px;align-items:center}
 .hero strong{font-size:23px;color:#fff}.hero p{color:#d1e9e7;margin:8px 0 0}.hero .emblem{font-size:44px;opacity:.9}
 @media(max-width:640px){header{padding:13px 16px;align-items:flex-start;flex-direction:column}nav{gap:7px}nav a{padding:6px 9px;font-size:13px}main{margin:10px auto}.hero{padding:17px}.hero strong{font-size:19px}.hero .emblem{font-size:30px}table{font-size:13px}}
-.brand{display:flex;align-items:center;gap:11px}.brand img{width:49px;height:49px;object-fit:contain;filter:drop-shadow(0 2px 5px #0003)}@media(max-width:640px){.brand img{width:42px;height:42px}}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
+.brand{display:flex;align-items:center;gap:11px}.brand img{width:49px;height:49px;object-fit:contain;filter:drop-shadow(0 2px 5px #0003)}@media(max-width:640px){.brand img{width:42px;height:42px}}.login-card{max-width:27rem;margin:1rem auto}.signin,.signin label{display:grid;gap:.45rem}.signin{gap:.85rem;margin:.75rem 0}.signin :is(input,select,button){margin:0}.login-card details{margin-top:1.5rem}.choice{display:flex;gap:.6rem;flex-wrap:wrap}.choice button{flex:1 1 10rem;margin:0}.yes,.choice .yes{background:#82e3b5;color:#103c2b}.maybe,.choice .maybe{background:#ffd372;color:#493200}.answer{display:inline-block;padding:.45rem .8rem;border-radius:10px}summary{cursor:pointer;padding:.55rem 0}.action-card{max-width:48rem;margin:1rem auto}.action-card h2{margin-bottom:.4rem}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav><a href="/">Αρχική</a>"""+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script><p class="muted"><small>ΤΕΤ • Οι δηλώσεις διαθεσιμότητας δεν καταχωρίζονται ως παρουσίες.</small></p></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
  with connect() as c:
   people=execute(c,"SELECT id,name,callsign FROM people ORDER BY name").fetchall()
  opts=''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+(' — '+esc(p["callsign"]) if p["callsign"] else '')+'</option>' for p in people)
- return page(req,"Είσοδος",'<div class="panel"><form method="post" action="/login"><label>Ρόλος <select name="role"><option value="member">Μέλος</option><option value="admin">Υπεύθυνος</option></select></label><label>Μέλος (για είσοδο μέλους) <select name="person_id"><option value="0">—</option>'+opts+'</select></label><label>Κωδικός <input type="password" name="pin" required></label><button>Είσοδος</button></form></div>')
+ pin='<label>PIN <input name="pin" type="password" autocomplete="current-password" required></label>'
+ member='<form class="signin" method="post" action="/login"><input type="hidden" name="role" value="member"><label>Όνομα και διακριτικό <select name="person_id" required><option value="">Επίλεξε το όνομά σου</option>'+opts+'</select></label>'+pin+'<button>Είσοδος μέλους</button></form>'
+ admin='<details><summary>Είσοδος υπευθύνου</summary><form class="signin" method="post" action="/login"><input type="hidden" name="role" value="admin">'+pin+'<button>Είσοδος υπευθύνου</button></form></details>'
+ return page(req,"Είσοδος",'<div class="panel login-card">'+member+admin+'</div>')
 @app.post("/login")
 def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)):
  if role=="admin":
@@ -150,9 +153,23 @@ def home(req:Request):
  if role=="admin":
   body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Καταχώριση παρουσίας</h2><form method="post" action="/presence"><select name="person_id" required>'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Παρών</option><option>Απών</option></select><button>Αποθήκευση / Επεξεργασία</button></form><h2 class="section-title"><span class="dot"></span> Σημερινές παρουσίες</h2><div class="wrap"><table><tr><th>Μέλος</th><th>Κατάσταση</th><th>Τελευταία αλλαγή</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td><td>'+esc(r["updated_at"])+'</td></tr>' for r in pres)+'</table></div></div>'
   body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Νέα διαθεσιμότητα</h2><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><textarea name="description" rows="3" maxlength="2000" placeholder="Περιγραφή / ιστορικό: τι πρόκειται να γίνει, οδηγίες, σημείο συνάντησης..."></textarea><button>Άνοιγμα</button></form></div>'
- body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
+ if role=="member":
+  body=''
+  acts=sorted(acts,key=lambda a:(not a["active"],a["id"] in my_status))
+  if not any(a["active"] for a in acts):body='<p>Δεν υπάρχει ανοιχτή δράση.</p>'
+ else:body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
  for a in acts:
-  body+='<div class="panel"><strong>'+esc(a["title"])+' • '+esc(a["day"])+'</strong> <span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>' + ('<p style="white-space:pre-wrap">'+esc(a["description"])+'</p>' if a["description"] else '') + '<p>Διαθέσιμοι: '+str(summary.get((a["id"],"Διαθέσιμος"),0))+' · Ίσως: '+str(summary.get((a["id"],"Ίσως διαθέσιμος"),0))+' · Μη διαθέσιμοι: '+str(summary.get((a["id"],"Μη διαθέσιμος"),0))+'</p>'
+  body+='<div class="panel action-card"><h2>'+esc(a["title"])+' · '+esc(a["day"])+'</h2><span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>'
+  if a["description"]:body+='<p style="white-space:pre-wrap">'+esc(a["description"])+'</p>'
+  if role=="member":
+   current=my_status.get(a["id"])
+   if current:
+    color={"Διαθέσιμος":"yes","Ίσως διαθέσιμος":"maybe"}.get(current,"")
+    body+='<p class="answer '+color+'">Η δήλωσή μου: <strong>'+esc(current)+'</strong></p>'
+   if a["active"]:
+    form='<form class="choice" method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="yes" name="status" value="Διαθέσιμος">Διαθέσιμος</button><button class="maybe" name="status" value="Ίσως διαθέσιμος">Ίσως διαθέσιμος</button></form>'
+    body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else '<p>Είσαι διαθέσιμος για τη δράση;</p>'+form
+   elif not current:body+='<p>Χωρίς απάντηση</p>'
   entries=[r for r in log_rows if r["activity_id"]==a["id"]]
   body+='<details><summary>Ημερολόγιο δράσης ('+str(len(entries))+')</summary>'
   if entries:
@@ -161,6 +178,7 @@ def home(req:Request):
   if role=="admin" and a["active"]:
    body+='<form method="post" action="/activity-log"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><textarea name="entry" rows="3" maxlength="2000" required placeholder="Νέα ενημέρωση για τη δραστηριότητα..."></textarea><button>Προσθήκη στο ιστορικό</button></form>'
   body+='</details>'
+  if role=="member":body+='<details><summary>Διαθεσιμότητα ομάδας</summary>'
   yes=summary.get((a["id"],"Διαθέσιμος"),0)
   maybe=summary.get((a["id"],"Ίσως διαθέσιμος"),0)
   no=summary.get((a["id"],"Μη διαθέσιμος"),0)
@@ -173,18 +191,11 @@ def home(req:Request):
    details=[r for r in available_rows if r["activity_id"]==a["id"]]
    if details:
     body+='<details><summary>Προβολή δηλώσεων μελών ('+str(len(details))+')</summary><div class="wrap"><table><tr><th>Μέλος</th><th>Διαθεσιμότητα</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td></tr>' for r in details)+'</table></div></details>'
-  if role=="member":
-   current=my_status.get(a["id"])
-   body+='<p>Η δήλωσή μου: <strong>'+esc(current or 'Χωρίς απάντηση')+'</strong></p>'
-  if a["active"]:
-   if role=="member":
-    form='<form method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'">'
-    for status in ("Διαθέσιμος","Ίσως διαθέσιμος"):
-     form+='<button name="status" value="'+status+'">'+status+'</button>'
-    form+='</form>'
-    body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else form
-   else:body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
+  if role=="member":body+='</details>'
+  if a["active"] and role=="admin":
+   body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
   body+='</div>'
+ if role=="member":return page(req,"Η διαθεσιμότητά μου",body)
  body+='</div>'
  return page(req,"Κεντρική εικόνα",body)
 @app.get("/people")
