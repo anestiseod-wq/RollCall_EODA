@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS activity_log(id INTEGER PRIMARY KEY,activity_id INTEG
   execute(c,f"CREATE TABLE IF NOT EXISTS procedure_events(id {event_id} PRIMARY KEY, period TEXT NOT NULL, item TEXT NOT NULL, event TEXT NOT NULL, note TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL)")
   for name in TET_ROSTER:
    execute(c,"INSERT INTO people(name) VALUES(?) ON CONFLICT(name) DO NOTHING",(name,))
+  execute(c,"CREATE TABLE IF NOT EXISTS board_viewers(name TEXT PRIMARY KEY,pin_hash TEXT NOT NULL,session_key TEXT NOT NULL)")
 init()
 def hash_pin(pin,salt=None):
  salt=salt or secrets.token_hex(16)
@@ -137,7 +138,7 @@ button{border:0;background:#ac1730;color:#fff;cursor:pointer;font-weight:700;min
 summary{color:var(--muted);cursor:pointer;padding:.5rem 0;font-weight:600}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.55rem}.grid .panel{margin:.3rem 0}.stat{font-size:1.65rem;font-weight:750;color:var(--accent)}.tag{color:var(--muted);font-size:.9rem}.wrap{overflow:auto}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:.55rem;border-bottom:1px solid var(--line)}
 @media(max-width:560px){header{gap:.2rem}.brand img{width:31px;height:31px}main{margin:1rem auto}nav a{font-size:.9rem}.grid{gap:.3rem}}
 .checklist{max-width:42rem}.checklist h2{border-bottom:3px solid #c21e35;padding-bottom:.55rem}.checkrow{background:transparent;color:var(--ink);text-align:left;display:flex;align-items:center;width:100%;gap:.7rem;border-radius:0;border-bottom:1px solid var(--line);font-weight:500;padding:.55rem .2rem}.checkrow span{width:1.45rem;height:1.45rem;border:2px solid var(--muted);border-radius:5px;flex:none;text-align:center;line-height:1.15}.checkrow[aria-checked=true] span{background:#ffd45e;border-color:#ffd45e;color:#392a11}.checkrow:focus-visible{outline-offset:-3px}.checklist h3{margin:0;font-size:1.1rem}
-.history-link{color:var(--accent);font-weight:650}.report{margin-left:2.4rem}.report summary{font-size:.88rem}.issue{white-space:pre-wrap;overflow-wrap:anywhere}.event{border-bottom:1px solid var(--line);padding:.6rem 0}.event small{display:block}.arrived{background:#18713c;color:#fff}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+('<a href="/">Αρχική</a><a href="/procedures">Διαδικασίες</a>' if role else "")+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
+.history-link{color:var(--accent);font-weight:650}.report{margin-left:2.4rem}.report summary{font-size:.88rem}.issue{white-space:pre-wrap;overflow-wrap:anywhere}.event{border-bottom:1px solid var(--line);padding:.6rem 0}.event small{display:block}.arrived{background:#18713c;color:#fff}</style><body class='"""+("light" if theme=="light" else "")+"""'><header><div class="brand"><img src="/branding/eoda" alt="ΕΟΔ Αττικής"><img src="/branding/tele" alt="Τμήμα Τηλεπικοινωνιών"><strong>ΤΕΤ | Παρουσιολόγιο</strong></div><nav>"""+('<a href="/">Αρχική</a><a href="/procedures">Διαδικασίες</a>' if role in ("member","admin") else "")+("""<a href="/people">Μέλη</a><a href="/history">Ιστορικό</a>""" if role=="admin" else "")+"""<a href="/theme" aria-label="Αλλαγή θέματος">☼ / ☾</a>"""+("""<a href="/logout">Έξοδος</a>""" if role else "")+"""</nav></header><main><h1>"""+esc(title)+"""</h1>"""+body+"""<script>document.querySelectorAll("form[method=post]").forEach(f=>{if(f.action.endsWith("/login"))return;let i=document.createElement("input");i.type="hidden";i.name="csrf";i.value="""+json.dumps(csrf(req))+""";f.appendChild(i)})</script></main></body></html>""")
 def go(path="/"):return RedirectResponse(path,status_code=303)
 @app.get("/login")
 def login_page(req:Request):
@@ -147,9 +148,15 @@ def login_page(req:Request):
  pin='<label>PIN <input name="pin" type="password" autocomplete="current-password" required></label>'
  member='<form class="signin" method="post" action="/login"><input type="hidden" name="role" value="member"><label>Όνομα και διακριτικό <select name="person_id" required><option value="">Επίλεξε το όνομά σου</option>'+opts+'</select></label>'+pin+'<button>Είσοδος μέλους</button></form>'
  admin='<details><summary>Είσοδος υπευθύνου</summary><form class="signin" method="post" action="/login"><input type="hidden" name="role" value="admin">'+pin+'<button>Είσοδος υπευθύνου</button></form></details>'
- return page(req,"Είσοδος",'<div class="panel login-card">'+member+admin+'</div>')
+ return page(req,"Είσοδος",'<div class="panel login-card">'+member+admin+'<details><summary>Είσοδος ΔΣ</summary><form class="signin" method="post" action="/login"><input type="hidden" name="role" value="board"><label>Όνομα χρήστη<input name="viewer" required></label>'+pin+'<button>Είσοδος ΔΣ</button></form></details></div>')
 @app.post("/login")
-def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0)):
+def login(req:Request,role:str=Form(...),pin:str=Form(...),person_id:int=Form(0),viewer:str=Form("")):
+ if role=="board":
+  with connect() as c:row=execute(c,"SELECT * FROM board_viewers WHERE name=?",(viewer.strip(),)).fetchone()
+  if not row or not verify_pin(pin,row["pin_hash"]):return HTMLResponse("Λανθασμένα στοιχεία.",403)
+  req.session.clear()
+  req.session.update(role="board",viewer=row["name"],viewer_key=row["session_key"])
+  return go()
  if role=="admin":
   if not ADMIN_PIN or not hmac.compare_digest(pin,ADMIN_PIN):return HTMLResponse("Λανθασμένος κωδικός.",status_code=403)
   req.session.clear();req.session["role"]="admin";return go()
@@ -167,6 +174,7 @@ def theme(req:Request):
 def home(req:Request):
  role=auth(req)
  if not role:return go("/login")
+ if role=="board":return board_home(req)
  with connect() as c:
   people=execute(c,"SELECT * FROM people ORDER BY name").fetchall()
   pres=execute(c,"SELECT p.*,people.name FROM presence p JOIN people ON people.id=p.person_id WHERE day=? ORDER BY people.name",(datetime.now(ZoneInfo("Europe/Athens")).strftime("%Y-%m-%d"),)).fetchall()
@@ -179,15 +187,15 @@ def home(req:Request):
    my_status={r["activity_id"]:r["status"] for r in rows}
   log_rows=execute(c,"SELECT activity_id,entry,created_at FROM activity_log ORDER BY id ASC").fetchall()
   summary={(r["activity_id"],r["status"]):r["n"] for r in counts}
- body='<div class="grid"><div class="panel"><div class="stat">'+str(len(people))+'</div>Μέλη ΤΕΤ</div><div class="panel"><div class="stat">'+str(sum(r["status"]=="Παρών" for r in pres))+'</div>Παρόντες σήμερα</div><div class="panel"><div class="stat">'+str(sum(a["active"] for a in acts))+'</div>Ανοιχτές διαθεσιμότητες</div></div>'
+ body=''
  if role=="admin":
-  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Καταχώριση παρουσίας</h2><form method="post" action="/presence"><select name="person_id" required>'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Παρών</option><option>Απών</option></select><button>Αποθήκευση / Επεξεργασία</button></form><h2 class="section-title"><span class="dot"></span> Σημερινές παρουσίες</h2><div class="wrap"><table><tr><th>Μέλος</th><th>Κατάσταση</th><th>Τελευταία αλλαγή</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td><td>'+esc(r["updated_at"])+'</td></tr>' for r in pres)+'</table></div></div>'
-  body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Νέα διαθεσιμότητα</h2><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><textarea name="description" rows="3" maxlength="2000" placeholder="Περιγραφή / ιστορικό: τι πρόκειται να γίνει, οδηγίες, σημείο συνάντησης..."></textarea><button>Άνοιγμα</button></form></div>'
+  body+='<details class="panel"><summary>Σημερινές παρουσίες</summary><form method="post" action="/presence"><select name="person_id" required>'+''.join('<option value="'+str(p["id"])+'">'+esc(p["name"])+'</option>' for p in people)+'</select><select name="status"><option>Παρών</option><option>Απών</option></select><button>Αποθήκευση / Επεξεργασία</button></form><h2 class="section-title"><span class="dot"></span> Σημερινές παρουσίες</h2><div class="wrap"><table><tr><th>Μέλος</th><th>Κατάσταση</th><th>Τελευταία αλλαγή</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td><td>'+esc(r["updated_at"])+'</td></tr>' for r in pres)+'</table></div></details>'
+  body+='<details class="panel"><summary>Νέα δράση</summary><form method="post" action="/activity"><select name="title"><option>Πιθανή κινητοποίηση</option><option>Άσκηση</option><option>Άλλη δραστηριότητα</option></select><input type="date" name="day" value="'+(datetime.now()+timedelta(days=1)).strftime("%Y-%m-%d")+'" required><textarea name="description" rows="3" maxlength="2000" placeholder="Περιγραφή / ιστορικό: τι πρόκειται να γίνει, οδηγίες, σημείο συνάντησης..."></textarea><button>Άνοιγμα</button></form></details>'
  if role=="member":
   body='<section class="member-view">'
   acts=sorted(acts,key=lambda a:(not a["active"],a["id"] in my_status))
   if not any(a["active"] for a in acts):body+='<p class="panel">Δεν υπάρχει ανοιχτή δράση.</p>'
- else:body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Μελλοντικές διαθεσιμότητες</h2>'
+ else:body+='<div class="panel"><h2 class="section-title"><span class="dot"></span> Δράσεις</h2>'
  archive_open=False
  for a in acts:
   if role=="member" and not a["active"] and not archive_open:
@@ -196,7 +204,7 @@ def home(req:Request):
   date_label='/'.join(a["day"].split('-')[::-1])
   body+='<div class="panel action-card"><div class="action-head"><h2>'+esc(a["title"])+'</h2><time datetime="'+esc(a["day"])+'">'+esc(date_label)+'</time></div>'
   if role=="admin":body+='<span class="tag">'+("Ανοιχτή" if a["active"] else "Κλειστή")+'</span>'
-  if a["description"]:body+='<p style="white-space:pre-wrap">'+esc(a["description"])+'</p>'
+  if a["description"]:body+='<details><summary>Οδηγίες δράσης</summary><p style="white-space:pre-wrap">'+esc(a["description"])+'</p></details>'
   if role=="member":
    current=my_status.get(a["id"])
    if current:
@@ -208,7 +216,7 @@ def home(req:Request):
     form='<form class="choice" method="post" action="/availability"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="yes" name="status" value="Διαθέσιμος">Διαθέσιμος</button><button class="maybe" name="status" value="Ίσως διαθέσιμος">Ίσως διαθέσιμος</button></form>'
     body+=('<details><summary>Αλλαγή δήλωσης</summary>'+form+'</details>') if current else form
    elif not current:body+='<p>Χωρίς απάντηση</p>'
-  if role=="member":body+='<details><summary>Λεπτομέρειες δράσης</summary>'
+  body+='<details><summary>Λεπτομέρειες δράσης</summary>'
   entries=[r for r in log_rows if r["activity_id"]==a["id"]]
   body+='<details><summary>Ημερολόγιο δράσης ('+str(len(entries))+')</summary>'
   if entries:
@@ -236,7 +244,7 @@ def home(req:Request):
    details=[r for r in available_rows if r["activity_id"]==a["id"]]
    if details:
     body+='<details><summary>Προβολή δηλώσεων μελών ('+str(len(details))+')</summary><div class="wrap"><table><tr><th>Μέλος</th><th>Διαθεσιμότητα</th></tr>'+''.join('<tr><td>'+esc(r["name"])+'</td><td>'+esc(r["status"])+'</td></tr>' for r in details)+'</table></div></details>'
-  if role=="member":body+='</details>'
+  body+='</details>'
   if a["active"] and role=="admin":
    body+='<form method="post" action="/close"><input type="hidden" name="activity_id" value="'+str(a["id"])+'"><button class="alt">Κλείσιμο</button></form>'
   body+='</div>'
@@ -253,7 +261,7 @@ def people(req:Request):
  activation=''
  if pending:
   activation='<section class="panel"><h2>Ορισμός PIN μέλους</h2><form method="post" action="/people/activate"><label>Μέλος <select name="person_id">'+pending+'</select></label><label> Διακριτικό <input name="callsign" maxlength="40"></label><label> Προσωπικό PIN <input type="password" name="pin" inputmode="numeric" minlength="6" required></label><button>Ορισμός PIN</button></form></section>'
- return page(req,"Μέλη ΤΕΤ",activation+'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="callsign" placeholder="Διακριτικό (π.χ. ΤΕΤ 01)" maxlength="40"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td><td>'+esc(p["callsign"] or "—")+'</td></tr>' for p in rows)+'</table></div></div>')
+ return page(req,"Μέλη ΤΕΤ",'<p><a class="history-link" href="/board-access">Πρόσβαση ΔΣ</a></p>'+activation+'<div class="panel"><form method="post" action="/people"><input name="name" placeholder="Ονοματεπώνυμο" required maxlength="100"><input name="callsign" placeholder="Διακριτικό (π.χ. ΤΕΤ 01)" maxlength="40"><input name="pin" type="password" minlength="6" placeholder="Προσωπικό PIN (6+ ψηφία)" required><button>Προσθήκη μέλους</button></form><div class="wrap"><table>'+''.join('<tr><td>'+esc(p["name"])+'</td><td>'+esc(p["callsign"] or "—")+'</td></tr>' for p in rows)+'</table></div></div>')
 @app.post("/people/activate")
 def activate_member(req:Request,person_id:int=Form(...),pin:str=Form(...),csrf:str=Form(...),callsign:str=Form("")):
  if auth(req)!="admin" or not valid_csrf(req,csrf):return HTMLResponse("Forbidden",403)
@@ -385,7 +393,7 @@ def procedure_periods():
 
 @app.get("/procedures")
 def procedures(req:Request):
- if not auth(req):return go("/login")
+ if auth(req) not in ("admin","member"):return go("/login")
  parts=['<div class="checklist"><a class="history-link" href="/procedures/history">Ιστορικό ελέγχων</a>']
  with connect() as c:
   states={r["item"]:r for r in execute(c,"SELECT * FROM procedure_state").fetchall()}
@@ -416,7 +424,7 @@ def procedures(req:Request):
 
 @app.post("/procedures")
 def save_procedure(req:Request, period:str=Form(...), item:str=Form(...), done:int|None=Form(None), csrf:str=Form(...), action:str=Form("check"), note:str=Form(""), revision:int=Form(0)):
- if not auth(req):return go("/login")
+ if auth(req) not in ("admin","member"):return go("/login")
  if not valid_csrf(req,csrf):return HTMLResponse("Μη έγκυρο αίτημα.",403)
  allowed={p:{key for _,group in groups for key,_ in group} for p,_,_,groups in procedure_periods()}
  if period not in allowed:return HTMLResponse('Η περίοδος άλλαξε. <a href="/procedures">Τρέχουσα λίστα</a>',409)
@@ -457,7 +465,7 @@ def save_procedure(req:Request, period:str=Form(...), item:str=Form(...), done:i
 
 @app.get("/procedures/history")
 def procedure_history(req:Request,before:int=0):
- if not auth(req):return go("/login")
+ if auth(req) not in ("admin","member"):return go("/login")
  labels={key:" · ".join(filter(None,(heading or "Εξαμηνιαίος έλεγχος",label))) for groups in (WEEKLY_GROUPS,HALF_YEAR_GROUPS) for heading,group in groups for key,label in group}
  with connect() as c:
   sql="SELECT * FROM procedure_events"
@@ -471,3 +479,52 @@ def procedure_history(req:Request,before:int=0):
   parts.append('</article>')
  if len(rows)>50:parts.append(f'<a class="history-link" href="?before={rows[49]["id"]}">Παλαιότερες καταχωρίσεις</a>')
  return page(req,"Ιστορικό ελέγχων","".join(parts)+'</div>')
+
+def board_home(req):
+ with connect() as c:
+  account=execute(c,"SELECT session_key FROM board_viewers WHERE name=?",(req.session.get("viewer"),)).fetchone()
+  if not account or account["session_key"]!=req.session.get("viewer_key"):
+   req.session.clear()
+   return go("/login")
+  activities=execute(c,"SELECT id,title,day,active FROM activities ORDER BY active DESC,day DESC,id DESC").fetchall()
+  rows=execute(c,"SELECT activity_id,status,COUNT(*) AS n FROM availability GROUP BY activity_id,status").fetchall()
+ counts={(r["activity_id"],r["status"]):r["n"] for r in rows}
+ parts=[]
+ if not any(a["active"] for a in activities):parts.append('<p>Δεν υπάρχει ανοιχτή δράση.</p>')
+ archive=False
+ for a in activities:
+  if not a["active"] and not archive:
+   parts.append('<details><summary>Κλειστές δράσεις</summary>')
+   archive=True
+  day='/'.join(a["day"].split('-')[::-1])
+  parts.append(f'<article class="panel"><div class="action-head"><h2>{esc(a["title"])}</h2><time>{esc(day)}</time></div>')
+  parts.append(' · '.join(f'{label} <strong>{counts.get((a["id"],status),0)}</strong>' for label,status in (("Διαθέσιμοι","Διαθέσιμος"),("Ίσως","Ίσως διαθέσιμος"),("Παρόντες","Παρών"))))
+  parts.append('</article>')
+ if archive:parts.append('</details>')
+ return page(req,"Δράσεις ΤΕΤ","".join(parts))
+
+@app.get("/board-access")
+def board_access(req:Request):
+ if auth(req)!="admin":return HTMLResponse("Forbidden",403)
+ with connect() as c:rows=execute(c,"SELECT name FROM board_viewers ORDER BY name").fetchall()
+ body='<form class="signin panel" method="post" action="/board-access"><label>Όνομα χρήστη<input name="viewer" maxlength="100" required></label><label>Προσωπικό PIN<input name="pin" type="password" inputmode="numeric" minlength="6" required></label><button>Προσθήκη μέλους ΔΣ</button></form>'
+ for row in rows:
+  name=esc(row["name"])
+  body+=f'<form class="panel" method="post" action="/board-access/revoke">{name} <button name="viewer" value="{name}">Ανάκληση πρόσβασης</button></form>'
+ return page(req,"Πρόσβαση ΔΣ",body)
+
+@app.post("/board-access")
+def grant_board(req:Request,viewer:str=Form(...),pin:str=Form(...),csrf:str=Form(...)):
+ if auth(req)!="admin" or not valid_csrf(req,csrf):return HTMLResponse("Forbidden",403)
+ viewer=viewer.strip()
+ if not 1<=len(viewer)<=100 or not (6<=len(pin)<=128 and pin.isdigit()):return HTMLResponse("Χρειάζεται όνομα και PIN τουλάχιστον 6 ψηφίων.",400)
+ with connect() as c:
+  changed=execute(c,"INSERT INTO board_viewers(name,pin_hash,session_key) VALUES(?,?,?) ON CONFLICT(name) DO NOTHING",(viewer,hash_pin(pin),secrets.token_hex(16)))
+  if not changed.rowcount:return HTMLResponse("Το όνομα χρησιμοποιείται ήδη.",409)
+ return go("/board-access")
+
+@app.post("/board-access/revoke")
+def revoke_board(req:Request,viewer:str=Form(...),csrf:str=Form(...)):
+ if auth(req)!="admin" or not valid_csrf(req,csrf):return HTMLResponse("Forbidden",403)
+ with connect() as c:execute(c,"DELETE FROM board_viewers WHERE name=?",(viewer,))
+ return go("/board-access")
